@@ -110,7 +110,7 @@ textarea.copy{width:100%;height:200px;border:1px solid var(--b300);border-radius
    changes are sent to Supabase in the background.
    All money is stored in SEN (integers) to avoid decimal errors.
    ===================================================================== */
-const ROLE_LABELS={owner:"Owner",kitchen:"Kitchen staff",pending:"Waiting for approval"};
+const ROLE_LABELS={owner:"Owner",kitchen:"Kitchen staff",pending:"No access"};
 const ITEM={T:"Tauhu",P:"Popia"};
 /* ---------- MONEY ---------- */
 const RM=s=>(s<0?"-":"")+"RM"+(Math.abs(s)/100).toFixed(2);
@@ -590,29 +590,56 @@ async function saveFile(filename,data){ // data: string (csv) or Uint8Array (pdf
 
 /* ---------- AUTH (Supabase) ---------- */
 const CFG=window.AUNTY_TAUHU_CONFIG||{};
-const Auth={msg:"",mode:"login",staff:[],
+/* Login is NAME + PIN. Behind the scenes each person is a Supabase user
+   with a hidden email (name@auntytauhu.app) and the PIN as password. */
+const PIN_RE=/^\d{4,8}$/;
+const pinPw=pin=>`AT-${pin}-pin`;
+const nameEmail=name=>String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g,".").replace(/^\.+|\.+$/g,"")+"@auntytauhu.app";
+const Auth={msg:"",mode:"login",staff:[],ownerExists:true,
   async init(){
     if(!CFG.supabaseUrl||!CFG.supabaseAnonKey||!window.supabase){ui.screen="noconfig";render();return;}
     Sync.sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:true,autoRefreshToken:true}});
     const{data}=await Sync.sb.auth.getSession();
-    if(data&&data.session)await this.after(data.session.user);else{ui.screen="login";render();}},
+    if(data&&data.session){await this.after(data.session.user);return;}
+    await this.checkOwner();ui.screen="login";render();},
+  async checkOwner(){try{const{data,error}=await Sync.sb.rpc("owner_exists");this.ownerExists=error?true:!!data;}catch(e){this.ownerExists=true;}this.mode=this.ownerExists?"login":"setup";},
   async after(user){
     const{data:prof,error}=await Sync.sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
-    if(error||!prof){this.msg=error?("Couldn't load your account: "+error.message):"Account not found. Ask the owner to check the setup.";ui.screen="login";render();return;}
-    API.me={id:user.id,name:prof.name||user.email,role:prof.role,email:user.email};
-    if(prof.role==="pending"){ui.screen="pending";render();return;}
+    if(error||!prof){this.msg=error?("Couldn't load your account: "+error.message):"Account not found. Ask the owner to check the setup.";await Sync.sb.auth.signOut();ui.screen="login";render();return;}
+    API.me={id:user.id,name:prof.name||"",role:prof.role};
+    if(prof.role==="pending"){this.msg="This account has no access. Ask the owner to give you access.";await Sync.sb.auth.signOut();API.me=null;ui.screen="login";render();return;}
     ui.screen="app";ui.tab=API.isOwner()?"today":"orders";ui.date=today();
     const had=Sync.restore();if(had)render();else{DB=emptyDB();Sync.takeSnap();Sync.lastSync=0;ui.screen="loading";render();} // fresh phone: nothing local to send
     await Sync.refresh();ui.screen="app";render();
     if(API.isOwner())this.loadStaff();},
-  async login(email,pw){this.msg="";const{data,error}=await Sync.sb.auth.signInWithPassword({email,password:pw});
-    if(error){this.msg=error.message==="Invalid login credentials"?"Wrong email or password.":error.message;render();return;}await this.after(data.user);},
-  async signup(name,email,pw){this.msg="";if(name.length<2){this.msg="Enter your name.";render();return;}if(pw.length<6){this.msg="Password must be at least 6 characters.";render();return;}
-    const{data,error}=await Sync.sb.auth.signUp({email,password:pw,options:{data:{name}}});
-    if(error){this.msg=error.message;render();return;}
-    if(data.session)await this.after(data.user);else{this.mode="login";this.msg="Account created. Check your email to confirm it, then log in.";render();}},
+  async login(name,pin){this.msg="";if(!name){this.msg="Enter your name.";render();return;}if(!PIN_RE.test(pin)){this.msg="PIN is 4 to 8 numbers.";render();return;}
+    const{data,error}=await Sync.sb.auth.signInWithPassword({email:nameEmail(name),password:pinPw(pin)});
+    if(error){this.msg=/invalid/i.test(error.message)?"Wrong name or PIN.":error.message;render();return;}await this.after(data.user);},
+  async setupOwner(name,pin,pin2){this.msg="";if(name.trim().length<2){this.msg="Enter your name.";render();return;}
+    if(!PIN_RE.test(pin)){this.msg="PIN must be 4 to 8 numbers.";render();return;}if(pin!==pin2){this.msg="The two PINs don't match.";render();return;}
+    const{data,error}=await Sync.sb.auth.signUp({email:nameEmail(name),password:pinPw(pin),options:{data:{name:name.trim()}}});
+    if(error){this.msg=/already/i.test(error.message)?"This name is already used. Log in instead.":error.message;render();return;}
+    if(!data.session){this.msg="Turn off 'Confirm email' in Supabase (Authentication → Sign In / Providers → Email), then try again.";render();return;}
+    await this.after(data.user);},
   async logout(){try{await Sync.flush();}catch(e){}await Sync.sb.auth.signOut();API.me=null;DB=emptyDB();Sync.takeSnap();ui.sheet=null;ui.screen="login";this.mode="login";this.msg="";render();},
   async loadStaff(){const{data}=await Sync.sb.from("profiles").select("id,name,email,role,created_at").order("created_at");this.staff=data||[];if(ui.tab==="settings")render();},
+  /* owner creates a staff login without being logged out (separate, non-saving client) */
+  async addStaff(name,pin,role){name=name.trim();
+    if(name.length<2)return fail("Enter the staff name");if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");
+    if(this.staff.some(p=>nameEmail(p.name||"")===nameEmail(name)))return fail("Someone already uses this name. Add a surname or number, e.g. Hafiz 2");
+    const tmp=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false,storageKey:"aunty-tauhu-add-staff"}});
+    const{data,error}=await tmp.auth.signUp({email:nameEmail(name),password:pinPw(pin),options:{data:{name}}});
+    if(error)return fail(/already/i.test(error.message)?"This name is already used. Choose another name.":error.message);
+    if(!data.user)return fail("Couldn't create the account");
+    try{await tmp.auth.signOut();}catch(e){}
+    const{error:e2}=await Sync.sb.from("profiles").update({role,name}).eq("id",data.user.id);
+    if(e2)return fail("Account created but access not set: "+e2.message);
+    API.log("Staff added",`${name} (${ROLE_LABELS[role]})`);save();await this.loadStaff();return ok();},
+  async resetPin(id,pin){if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");
+    const{error}=await Sync.sb.rpc("owner_set_password",{target:id,new_password:pinPw(pin)});if(error)return fail(error.message);
+    const p=this.staff.find(x=>x.id===id);API.log("PIN reset",p?p.name:id);save();return ok();},
+  async changeMyPin(pin,pin2){if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");if(pin!==pin2)return fail("The two PINs don't match");
+    const{error}=await Sync.sb.auth.updateUser({password:pinPw(pin)});if(error)return fail(error.message);API.log("PIN changed",API.me.name);save();return ok();},
   async setRole(id,role){const{error}=await Sync.sb.from("profiles").update({role}).eq("id",id);if(error){toast("Couldn't update: "+error.message,true);return;}
     const p=this.staff.find(x=>x.id===id);API.log("Staff access changed",`${p?p.name:id} → ${ROLE_LABELS[role]}`);save();toast("Updated");await this.loadStaff();render();}
 };
@@ -644,15 +671,15 @@ function render(){
    <main>${body}</main><nav><div class="in">${T.map(([id,l])=>`<button class="${ui.tab===id?"on":""}" data-a="tab" data-id="${id}">${icon(id)}${l}</button>`).join("")}</div></nav></div>${ui.sheet?sheetView():""}`;
   if(scroll&&$(".sheet"))$(".sheet").scrollTop=scroll;
 }
-function loginView(){const sign=Auth.mode==="signup";
-  return`<div class="login"><div class="hero"><img src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="muted">Booths, vendors & customer orders</div></div>
-  ${Auth.msg?`<div class="${/created|confirm/i.test(Auth.msg)?"note":"err-box"}">${esc(Auth.msg)}</div>`:""}
-  <form id="authForm" class="card">${sign?`<div class="field"><label>Your name</label><input id="aN" autocomplete="name" placeholder="e.g. Hafiz"></div>`:""}
-   <div class="field"><label>Email</label><input id="aE" type="email" inputmode="email" autocomplete="username" autocapitalize="off"></div>
-   <div class="field"><label>Password</label><input id="aP" type="password" autocomplete="${sign?"new-password":"current-password"}"></div>
-   <button class="btn block" type="submit">${sign?"Create account":"Log in"}</button></form>
-  <button class="btn ghost block" data-a="authMode">${sign?"I already have an account":"First time? Create an account"}</button>
-  ${sign?`<p class="muted" style="text-align:center">The first account becomes the owner. After that, the owner must approve new staff accounts.</p>`:""}</div>`;}
+function loginView(){const setup=Auth.mode==="setup";
+  return`<div class="login"><div class="hero"><img src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="muted">${setup?"First-time setup: create the owner account":"Booths, vendors & customer orders"}</div></div>
+  ${Auth.msg?`<div class="err-box">${esc(Auth.msg)}</div>`:""}
+  <form id="authForm" class="card">
+   <div class="field"><label>${setup?"Owner name":"Name"}</label><input id="aN" autocomplete="username" autocapitalize="words" placeholder="${setup?"e.g. Aunty":"Your name"}"></div>
+   <div class="field"><label>${setup?"Choose a PIN (4–8 numbers)":"PIN"}</label><input id="aP" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="${setup?"new-password":"current-password"}"></div>
+   ${setup?`<div class="field"><label>Type the PIN again</label><input id="aP2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password"></div>`:""}
+   <button class="btn block" type="submit">${setup?"Create owner account":"Log in"}</button></form>
+  ${setup?`<p class="muted" style="text-align:center">You'll add your staff and their PINs inside the app.</p>`:`<p class="muted" style="text-align:center">Forgot your PIN? Ask the owner to reset it.</p>`}</div>`;}
 
 /* ----- BOOTHS (daily) ----- */
 function todayView(){
@@ -873,14 +900,15 @@ function settingsView(){const s=DB.settings;
   <h3>Activity log</h3><div class="card list">${DB.audit.slice(0,30).map(a=>`<div class="item"><div class="grow"><b>${esc(a.action)}</b><div class="muted">${esc(a.detail)}</div><div class="muted">${esc(a.by)} · ${new Date(a.at).toLocaleString("en-GB")}</div></div></div>`).join("")}</div>
   <h3>Data</h3><div class="card">${syncLine()}<button class="btn ghost block" style="margin-top:10px;color:var(--red)" data-a="freshSheet">Delete all records…</button><p class="muted">Deletes booth, vendor and order records for everyone. Keeps booths, vendors, menu, prices and business details.</p></div>`;}
 function syncLine(){return`<div class="row between"><div><b>${Sync.online?"All changes synced":"Offline"}</b><div class="muted">${Sync.lastSync?"Last synced "+new Date(Sync.lastSync).toLocaleString("en-GB"):"Not synced yet"}</div></div><button class="btn sm sec" data-a="refresh">Sync now</button></div>`;}
-function staffSection(){const pend=Auth.staff.filter(p=>p.role==="pending");
-  return`<h3>Staff${pend.length?` · <span style="color:var(--red)">${pend.length} waiting</span>`:""}</h3><div class="card list">${Auth.staff.length?Auth.staff.map(p=>{const me=p.id===API.me.id;
-    return`<div class="item"><div class="avatar">${esc((p.name||"?")[0].toUpperCase())}</div><div class="grow"><b>${esc(p.name||"")}</b>${me?" (you)":""} <span class="badge ${p.role==="owner"?"b-sand":p.role==="kitchen"?"b-green":"b-amber"}">${ROLE_LABELS[p.role]}</span><div class="muted">${esc(p.email||"")}</div>
-     ${me?"":`<div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${p.role==="pending"?`<button class="btn sm green" data-a="setRole" data-id="${p.id}" data-role="kitchen">Approve</button>`:""}${p.role==="owner"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="kitchen">Make kitchen staff</button>`:""}${p.role==="kitchen"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="owner">Make owner</button>`:""}${p.role!=="pending"?`<button class="btn sm ghost" style="color:var(--red)" data-a="setRole" data-id="${p.id}" data-role="pending">Remove access</button>`:`<button class="btn sm ghost" style="color:var(--red)" data-a="setRole" data-id="${p.id}" data-role="pending">Ignore</button>`}</div>`}</div></div>`;}).join(""):`<div class="muted">Loading…</div>`}</div>
-  <p class="muted">New staff: open the app, tap <b>First time? Create an account</b>, then approve them here.</p>`;}
-
+function staffSection(){
+  return`<div class="row between"><h3>Staff</h3><button class="btn sm sec" data-a="addStaffSheet">+ Add staff</button></div><div class="card list">${Auth.staff.length?Auth.staff.map(p=>{const me=p.id===API.me.id;
+    return`<div class="item"><div class="avatar">${esc((p.name||"?")[0].toUpperCase())}</div><div class="grow"><b>${esc(p.name||"")}</b>${me?" (you)":""} <span class="badge ${p.role==="owner"?"b-sand":p.role==="kitchen"?"b-green":"b-red"}">${ROLE_LABELS[p.role]}</span>
+     <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn sm sec" data-a="pinSheet" data-id="${p.id}">${me?"Change my PIN":"Reset PIN"}</button>
+     ${me?"":`${p.role==="pending"?`<button class="btn sm green" data-a="setRole" data-id="${p.id}" data-role="kitchen">Give access</button>`:""}${p.role==="owner"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="kitchen">Make kitchen staff</button>`:""}${p.role==="kitchen"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="owner">Make owner</button>`:""}${p.role!=="pending"?`<button class="btn sm ghost" style="color:var(--red)" data-a="setRole" data-id="${p.id}" data-role="pending">Remove access</button>`:""}`}</div></div></div>`;}).join(""):`<div class="muted">Loading…</div>`}</div>
+  <p class="muted">Staff log in with their <b>name</b> and <b>PIN</b>. Kitchen staff only see customer orders.</p>`;}
 /* ----- ACCOUNT ----- */
 function moreView(){return`<div class="card row"><div class="avatar">${esc(API.me.name[0])}</div><div class="grow"><b>${esc(API.me.name)}</b><div class="muted">${ROLE_LABELS[API.me.role]}</div></div><button class="btn sm sec" data-a="logout">Log out</button></div>
+  <button class="btn sec block" style="margin-bottom:12px" data-a="pinSheet" data-id="${API.me.id}">Change my PIN</button>
   ${API.isOwner()?`<h3>Activity log</h3><div class="card list">${DB.audit.slice(0,30).map(a=>`<div class="item"><div class="grow"><b>${esc(a.action)}</b><div class="muted">${esc(a.detail)}</div><div class="muted">${esc(a.by)} · ${new Date(a.at).toLocaleString("en-GB")}</div></div></div>`).join("")}</div>`:""}
   <h3>Data</h3><div class="card">${syncLine()}</div>`;}
 
@@ -957,6 +985,14 @@ function sheetView(){const s=ui.sheet,err=s.error?`<div class="err-box">${esc(s.
   else if(s.type==="vendor")h=vendorSheet(s,err);
   else if(s.type==="trend")h=trendSheet(s);
   else if(s.type==="history")h=historySheet(s);
+  else if(s.type==="addStaff"){h=`<h2>Add staff</h2>${err}<div class="field"><label>Name (they log in with this)</label><input id="sfN" autocapitalize="words" placeholder="e.g. Kak Yah"></div>
+    <div class="field"><label>PIN (4–8 numbers)</label><input id="sfP" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="e.g. 2580"><div class="hint">Tell them their name and PIN. They can change the PIN later.</div></div>
+    <div class="field"><label>Access</label><div class="seg" style="margin:0">${[["kitchen","Kitchen staff (orders only)"],["owner","Owner (everything)"]].map(([k,l])=>`<button class="${(s.role||"kitchen")===k?"on":""}" data-a="sfRole" data-id="${k}">${l}</button>`).join("")}</div></div>
+    <button class="btn block" data-a="addStaff">Create login</button>`;}
+  else if(s.type==="pin"){const me=s.id===API.me.id,p=Auth.staff.find(x=>x.id===s.id);h=`<h2>${me?"Change my PIN":"Reset PIN for "+esc(p?p.name:"")}</h2>${err}
+    <div class="field"><label>New PIN (4–8 numbers)</label><input id="pn1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8"></div>
+    <div class="field"><label>Type it again</label><input id="pn2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8"></div>
+    <button class="btn block" data-a="savePin">Save PIN</button>`;}
   else if(s.type==="vendorEdit"){const v=s.id?API.vendor(s.id):{name:"",defT:20,defP:20,priceT:1000,priceP:1000,pct:20,promoPct:20};
     h=`<h2>${s.id?"Edit vendor":"Add vendor"}</h2>${err}<div class="field"><label>Vendor name</label><input id="vN" value="${esc(v.name)}" placeholder="e.g. DD"></div>
     <div class="grid2"><div class="field"><label>Tauhu price / pack (RM)</label><input id="vPT" inputmode="decimal" value="${s2d(v.priceT)}"></div><div class="field"><label>Popia price / pack (RM)</label><input id="vPP" inputmode="decimal" value="${s2d(v.priceP)}"></div></div>
@@ -999,8 +1035,12 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
   if(a==="bg"){if(ev.target===el){ui.sheet=null;render();}return;}
   switch(a){
     case"logout":Auth.logout();return;
-    case"authMode":Auth.mode=Auth.mode==="signup"?"login":"signup";Auth.msg="";break;
-    case"recheck":(async()=>{const{data}=await Sync.sb.auth.getUser();if(data&&data.user)await Auth.after(data.user);})();return;
+    case"addStaffSheet":return open({type:"addStaff",role:"kitchen"});
+    case"sfRole":s.role=id;s.sfN=val("sfN");s.sfP=val("sfP");render();document.getElementById("sfN").value=s.sfN;document.getElementById("sfP").value=s.sfP;return;
+    case"addStaff":{el.disabled=true;Auth.addStaff(val("sfN"),val("sfP"),s.role||"kitchen").then(r=>{el.disabled=false;if(failed(r))return;ui.sheet=null;toast("Staff login created");render();});return;}
+    case"pinSheet":return open({type:"pin",id});
+    case"savePin":{const a=val("pn1"),b=val("pn2");if(a!==b)return failed({ok:false,error:"The two PINs don't match"});el.disabled=true;
+      (s.id===API.me.id?Auth.changeMyPin(a,b):Auth.resetPin(s.id,a)).then(r=>{el.disabled=false;if(failed(r))return;ui.sheet=null;toast("PIN saved");render();});return;}
     case"refresh":Sync.refresh(true);return;
     case"setRole":Auth.setRole(id,el.dataset.role);return;
     case"tab":ui.tab=id;ui.sheet=null;scrollTo(0,0);if(id==="settings"&&API.isOwner())Auth.loadStaff();break;
@@ -1084,8 +1124,8 @@ document.addEventListener("input",ev=>{const t=ev.target,s=ui.sheet;if(!s||s.typ
   if(t.dataset.f)s.form[t.dataset.f]=t.value;
   if(t.dataset.d){s.form.del[t.dataset.d]=t.value;if(t.dataset.d==="fee")$("#oTotal").textContent=formTotalText(s.form);}
   if(t.id&&t.id.startsWith("q_")){const n=API.int(t.value)??0;s.form.qty[t.id.slice(2)]=n;t.closest(".step").classList.toggle("has",n>0);$("#oTotal").textContent=formTotalText(s.form);}});
-document.addEventListener("submit",ev=>{if(ev.target.id!=="authForm")return;ev.preventDefault();const e=val("aE"),pw=document.getElementById("aP").value;
-  if(Auth.mode==="signup")Auth.signup(val("aN"),e,pw);else Auth.login(e,pw);});
+document.addEventListener("submit",ev=>{if(ev.target.id!=="authForm")return;ev.preventDefault();const n=val("aN"),pin=val("aP");
+  if(Auth.mode==="setup")Auth.setupOwner(n,pin,val("aP2"));else Auth.login(n,pin);});
 document.addEventListener("change",ev=>{if((ev.target.id==="hFrom"||ev.target.id==="hTo")&&ui.sheet){ui.sheet.from=val("hFrom");ui.sheet.to=val("hTo");if(ui.sheet.from>ui.sheet.to)[ui.sheet.from,ui.sheet.to]=[ui.sheet.to,ui.sheet.from];render();return;}if(ev.target.id==="from"||ev.target.id==="to"){ui.from=val("from");ui.to=val("to");if(ui.from>ui.to)[ui.from,ui.to]=[ui.to,ui.from];render();}});
 Auth.init();
 </script>

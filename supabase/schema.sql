@@ -134,6 +134,27 @@ insert into public.menu (id, data) values
   ('m11', '{"id":"m11","cat":"Add-on","name":"Kuah (per pack)","price":200,"active":true}')
 on conflict (id) do nothing;
 
+-- ---------- login with name + PIN ----------
+-- Is there an owner yet? (the login screen uses this to offer first-time setup)
+create or replace function public.owner_exists()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where role = 'owner')
+$$;
+-- Owner sets a new PIN for a staff member
+create extension if not exists pgcrypto with schema extensions;
+create or replace function public.owner_set_password(target uuid, new_password text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if public.my_role() is distinct from 'owner' then raise exception 'Only the owner can reset PINs'; end if;
+  if length(new_password) < 6 then raise exception 'PIN too short'; end if;
+  update auth.users set encrypted_password = extensions.crypt(new_password, extensions.gen_salt('bf')), updated_at = now()
+  where id = target;
+end $$;
+revoke all on function public.owner_exists() from public;
+grant execute on function public.owner_exists() to anon, authenticated;
+revoke all on function public.owner_set_password(uuid, text) from public, anon;
+grant execute on function public.owner_set_password(uuid, text) to authenticated;
+
 -- ---------- permissions for logged-in users (row rules above still apply) ----------
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on

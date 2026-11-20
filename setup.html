@@ -155,6 +155,27 @@ insert into public.menu (id, data) values
   (&#x27;m11&#x27;, &#x27;{&quot;id&quot;:&quot;m11&quot;,&quot;cat&quot;:&quot;Add-on&quot;,&quot;name&quot;:&quot;Kuah (per pack)&quot;,&quot;price&quot;:200,&quot;active&quot;:true}&#x27;)
 on conflict (id) do nothing;
 
+-- ---------- login with name + PIN ----------
+-- Is there an owner yet? (the login screen uses this to offer first-time setup)
+create or replace function public.owner_exists()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.profiles where role = &#x27;owner&#x27;)
+$$;
+-- Owner sets a new PIN for a staff member
+create extension if not exists pgcrypto with schema extensions;
+create or replace function public.owner_set_password(target uuid, new_password text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if public.my_role() is distinct from &#x27;owner&#x27; then raise exception &#x27;Only the owner can reset PINs&#x27;; end if;
+  if length(new_password) &lt; 6 then raise exception &#x27;PIN too short&#x27;; end if;
+  update auth.users set encrypted_password = extensions.crypt(new_password, extensions.gen_salt(&#x27;bf&#x27;)), updated_at = now()
+  where id = target;
+end $$;
+revoke all on function public.owner_exists() from public;
+grant execute on function public.owner_exists() to anon, authenticated;
+revoke all on function public.owner_set_password(uuid, text) from public, anon;
+grant execute on function public.owner_set_password(uuid, text) to authenticated;
+
 -- ---------- permissions for logged-in users (row rules above still apply) ----------
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on
@@ -188,17 +209,18 @@ select &#x27;Aunty Tauhu database is ready&#x27; as result,
 <li>Copy the <b>Project URL</b> and the <b>anon public</b> key and send them to Claude in the chat.</li></ol>
 <div class="tip">Never share the <b>service_role</b> / secret key.</div></div>
 
-<div class="step"><h2><span class="n">4</span>Create your owner account first</h2>
+<div class="step"><h2><span class="n">4</span>Create the owner account</h2>
 <ol><li>Open the app: <a href="./">this link</a>.</li>
-<li>Tap <b>First time? Create an account</b>, enter your name, email and a password.</li>
-<li>The <b>first account becomes the owner</b> automatically.</li></ol></div>
+<li>The first time, it asks for the <b>Owner name</b> and a <b>PIN</b> (4–8 numbers).</li>
+<li>After that, everyone logs in with <b>name + PIN</b>.</li></ol></div>
 
 <div class="step"><h2><span class="n">5</span>Add it to your Home Screen</h2>
 <ol><li>Open the app in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with arrow).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol></div>
 
 <div class="step"><h2><span class="n">6</span>Add your staff</h2>
-<ol><li>Send staff the app link. They open it, tap <b>First time? Create an account</b> and add it to their Home Screen.</li>
-<li>You open <b>Settings → Staff</b> and tap <b>Approve</b>. They only see customer orders.</li></ol></div>
+<ol><li>In the app open <b>Settings → Staff → + Add staff</b>.</li>
+<li>Enter their name and a PIN, choose <b>Kitchen staff</b>, tap <b>Create login</b>.</li>
+<li>Send them the app link and tell them their name and PIN. Kitchen staff only see customer orders.</li></ol></div>
 </main>
 <script>
 document.getElementById("copySql").onclick=async function(){const t=document.getElementById("sql");
