@@ -74,6 +74,12 @@ create policy kitchen_kv_select on public.kv for select to authenticated using (
 drop policy if exists kitchen_audit_insert on public.audit;
 create policy kitchen_audit_insert on public.audit for insert to authenticated with check (public.my_role() = 'kitchen');
 
+-- kitchen staff: read back only their own activity-log lines (the app saves with INSERT ... RETURNING,
+-- which needs read access to the new row); everyone else's lines stay hidden
+drop policy if exists kitchen_audit_select_own on public.audit;
+create policy kitchen_audit_select_own on public.audit for select to authenticated
+  using (public.my_role() = 'kitchen' and data->>'by' = (select name from public.profiles where id = auth.uid()));
+
 -- profiles: everyone sees their own; the owner sees and manages all
 alter table public.profiles enable row level security;
 drop policy if exists profiles_select on public.profiles;

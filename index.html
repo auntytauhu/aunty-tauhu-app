@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="inventory.js?v=4"></script>
+<script src="inventory.js?v=5"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -177,7 +177,7 @@ const monday=s=>{const d=new Date(s+"T00:00:00");return addDays(s,-((d.getDay()+
 const uid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 const MENU_CATS=["Tauhu","Popia","Add-on"];
 /* app collection -> Supabase table (each table: id text, data jsonb, updated_at) */
-const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"vendor_entries",menu:"menu",orders:"orders",audit:"audit",...INV_COLL};
+const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"vendor_entries",menu:"menu",orders:"orders",...INV_COLL,audit:"audit"}; // activity log last: a log problem must never hold back real data
 const KV=["settings","business"];
 const emptyDB=()=>({settings:{priceT:1200,priceP:1000,pct:20,kitchenSeesMoney:false},business:{...BUSINESS},booths:[],entries:[],vendors:[],ventries:[],menu:[],orders:[],audit:[],...invEmpty()});
 let DB=emptyDB();
@@ -203,7 +203,7 @@ const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSy
       for(const c in COLL){const t=COLL[c],old=this.snap[c]||{},cur={},ups=[];
         DB[c].forEach(r=>{const j=JSON.stringify(r);cur[r.id]=j;if(old[r.id]!==j)ups.push({id:r.id,data:r,updated_at:now});});
         const dels=Object.keys(old).filter(id=>!(id in cur));
-        for(let i=0;i<ups.length;i+=300){const part=ups.slice(i,i+300);const{error}=c==="audit"?await this.sb.from(t).upsert(part,{ignoreDuplicates:true}):await this.sb.from(t).upsert(part);if(error)throw error;}
+        for(let i=0;i<ups.length;i+=300){const part=ups.slice(i,i+300);const{error}=c==="audit"?await this.sb.from(t).upsert(part,{ignoreDuplicates:true}):await this.sb.from(t).upsert(part);if(error){if(c==="audit"){console.warn("activity log not saved",error);break;}throw error;}}
         if(c!=="audit")for(let i=0;i<dels.length;i+=80){const{error}=await this.sb.from(t).delete().in("id",dels.slice(i,i+80));if(error)throw error;}
         this.snap[c]=cur;}
       for(const k of KV){const j=JSON.stringify(DB[k]);if(this.snap["kv:"+k]!==j){const{error}=await this.sb.from("kv").upsert({id:k,data:DB[k],updated_at:now});if(error)throw error;this.snap["kv:"+k]=j;}}
