@@ -442,6 +442,21 @@ details summary{cursor:pointer;font-weight:600;color:var(--navy2);padding:6px 0}
 .strip{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:7px}
 .strip div{background:var(--b100);border-radius:9px;padding:6px 2px;text-align:center}.strip small{display:block;font-size:9.5px;color:#6b6f78;text-transform:uppercase;letter-spacing:.4px}.strip b{font-size:15px}
 .strip .cl{background:var(--navy);color:#fff}.strip .cl small{color:#c8d0e0}
+.sitem{padding:12px 0;border-bottom:1px solid var(--b200)}.sitem:last-child{border-bottom:0}.sitem .nm{font-weight:800;font-size:16.5px}
+.srow{margin-top:8px}.su{font-size:12px;font-weight:700;color:var(--brown);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.sg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.sbox{background:#fff;border:1px solid var(--b300);border-radius:12px;padding:6px 8px 4px}
+.sbox small{display:block;font-size:11px;color:#6b6f78;font-weight:600}
+.sbox b{display:block;font-size:22px;font-weight:800;color:var(--navy);padding:2px 0 3px}
+.sbox input{width:100%;border:0;background:none;font-size:22px;font-weight:800;padding:2px 0 3px;color:#0e1726;outline:none}
+.sbox.ro{background:var(--b100);border-color:var(--b100)}.sbox.cl{border-color:var(--navy);border-width:2px}
+.sbox:focus-within{box-shadow:0 0 0 3px rgba(21,33,58,.15)}
+.sfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:13px}
+.sprice{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#6b6f78;font-weight:600}
+.sprice input{width:76px;border:1px solid var(--b300);border-radius:8px;padding:5px 6px;font-size:15px;text-align:right}
+.sbar{position:sticky;bottom:calc(64px + var(--sb));padding:10px 0;background:linear-gradient(transparent,var(--b50) 30%);z-index:5}
+.seg .sst-available.on{background:var(--green-bg);color:var(--green)}.seg .sst-low.on{background:#ffe8d1;color:#a14d00}.seg .sst-out.on{background:var(--red-bg);color:var(--red)}
+.tile.on{border:2px solid var(--navy)}
 .eq{font-size:12px;color:#6b6f78;margin-top:4px}.eqv{font-size:14px;color:#0e1726}
 `;document.head.appendChild(st);})();
 
@@ -454,11 +469,12 @@ function invDiscBox(exp,cl){if(cl===""||cl==null)return`<div class="disc none">E
 function invChangeBadge(c,unitName){if(!c)return"";const t=`${c.d>0?"+":c.d<0?"−":""}${RM(Math.abs(c.d)).replace("-","")}${c.pct!=null?` (${c.pct>0?"+":""}${c.pct.toFixed(2)}%)`:""}`;
   return c.dir==="up"?`<span class="badge b-red">▲ ${t}</span>`:c.dir==="down"?`<span class="badge b-green">▼ ${t}</span>`:`<span class="badge b-navy">No change</span>`;}
 const invCanSeeMoney=()=>API.isOwner();
-function invPages(){return API.isOwner()?[["dash","Dashboard"],["items","Inventory"],["daily","Daily update"],["usage","Usage"],["buys","Purchases"],["prices","Price history"],["reports","Reports"],["restock","Restock list"],["settings","Settings"]]
-  :[["daily","Daily update"],["usage","Usage"],["buys","Stock received"],["restock","Restock list"],["dash","Dashboard"],["items","Inventory"]];}
+function invPages(){return API.isOwner()?[["simple","Stock harian"],["items","Senarai stock"],["reports","Laporan"],["dash","Dashboard"],["prices","Harga"],["restock","Restock list"],["buys","Purchases"],["daily","Kiraan terperinci"],["usage","Usage"],["settings","Settings"]]
+  :[["simple","Stock harian"],["items","Senarai stock"],["restock","Restock list"],["buys","Stock received"],["daily","Kiraan terperinci"],["usage","Usage"],["dash","Dashboard"]];}
+const invMain=()=>API.isOwner()?["simple","items","reports"]:["simple","items","restock"];
 /* ---------- shared pieces for a clear phone layout ---------- */
 const INV_ICON={dash:'<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',items:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',
-  daily:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',usage:'<path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/>',
+  simple:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',daily:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',usage:'<path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/>',
   buys:'<path d="M5 8h14l-1.5 12h-11z"/><path d="M9 8a3 3 0 0 1 6 0"/>',prices:'<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
   reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',restock:'<path d="M4 6h16M4 12h10M4 18h7"/><path d="M15 17l2.5 2.5L22 15"/>',
   settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
@@ -472,9 +488,10 @@ function invQtyBox(it){const S=Inv.state(it);if(it.mode==="status")return`<div c
 const invChev=`<span class="chev">›</span>`;
 const invEq=(open,inn,us,ws,exp)=>`${fq(open)} + ${fq(inn)} − ${fq(us)} − ${fq(ws)} = <b>${fq(exp)}</b>`;
 function invView(){const P=invPages();if(!ui.inv||!P.some(p=>p[0]===ui.inv))ui.inv=P[0][0];
-  const body={dash:invDash,items:invItemsView,daily:invDaily,usage:invUsage,buys:invBuysView,prices:invPricesView,reports:invReports,restock:invRestockView,settings:invSettings}[ui.inv]();
+  const body={simple:invSimple,dash:invDash,items:invItemsView,daily:invDaily,usage:invUsage,buys:invBuysView,prices:invPricesView,reports:invReports,restock:invRestockView,settings:invSettings}[ui.inv]();
   setTimeout(()=>{const h=document.querySelector("header");if(h)document.documentElement.style.setProperty("--hh",h.offsetHeight+"px");},0);
-  return`<div class="chips invnav" id="invnav">${P.map(([k,l])=>`<button class="chip ${ui.inv===k?"on":""}" data-a="invPage" data-id="${k}">${invIco(k)}${l}</button>`).join("")}</div>${body}`;}
+  const M=invMain(),more=!M.includes(ui.inv),cur=P.find(p=>p[0]===ui.inv);
+  return`<div class="chips invnav" id="invnav">${P.filter(p=>M.includes(p[0])).map(([k,l])=>`<button class="chip ${ui.inv===k?"on":""}" data-a="invPage" data-id="${k}">${invIco(k)}${l}</button>`).join("")}<button class="chip ${more?"on":""}" data-a="invMore">${more?invIco(ui.inv)+cur[1]:"Lagi"} ▾</button></div>${body}`;}
 
 /* ----- DASHBOARD ----- */
 function invDash(){const owner=API.isOwner(),its=Inv.items(),S=its.map(it=>({it,S:Inv.state(it)})),t=today();
@@ -832,11 +849,99 @@ function invRecipeSheet(s,err){const r=s.id?DB.invRecipes.find(x=>x.id===s.id):n
   <button class="btn block" data-a="invSaveRecipe">Save recipe</button>${r?`<button class="btn ghost block" style="margin-top:8px;color:var(--red)" data-a="invDelRecipe">Delete recipe</button>`:""}`;}
 function invReadIng(s){s.ing=s.ing.map((g,i)=>({itemId:val(`rg_${i}_item`),unitId:val(`rg_${i}_unit`),qty:val(`rg_${i}_qty`)}));}
 
+
+/* =====================================================================
+   SIMPLE DAILY STOCK ("Stock harian"): per item and size, only
+   stock today (automatic) · added · closing · optional price.
+   Used = stock today + added − closing (worked out, never typed).
+   "Added" is kept as one purchase record per item/size/day, so it adds
+   to stock exactly once and can carry the current price.
+   ===================================================================== */
+const invAddId=(d,iid,uidv)=>`pa_${d}_${iid}_${uidv}`;
+Inv.addRec=function(d,iid,uidv){return DB.invBuys.find(p=>p.id===invAddId(d,iid,uidv))||null;};
+Inv.otherBought=function(it,uidv,d){const a=this.addRec(d,it.id,uidv);return q3(this.bought(it,uidv,d,d)-(a?a.qty:0));};
+Inv.saveSimple=async function(date,rows,stats,why){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return invFail("Pilih tarikh");
+  if(date>today())return invFail("Tak boleh isi untuk tarikh akan datang");
+  if(!this.canEdit(date))return invFail("Hanya owner boleh ubah rekod hari sebelum ini.");
+  const owner=API.isOwner(),plan=[];
+  for(const r of rows){const it=this.item(r.itemId),u=it&&this.unit(it,r.unitId);if(!u)continue;const nm=it.name+(it.units.length>1?` (${u.name})`:"");
+    const add=parseQ(r.add),cl=parseQ(r.cl);if(add==null)return invFail(`${nm}: "Ditambah" mesti nombor (contoh 2 atau 1.5)`);if(cl==null)return invFail(`${nm}: "Closing" mesti nombor`);
+    let up=null;if(owner&&String(r.price||"").trim()!==""){up=toSen(r.price);if(up==null)return invFail(`${nm}: harga contoh 15.00`);}
+    const open=this.openFor(it,u.id,date),other=this.otherBought(it,u.id,date),avail=q3(open+other+(add||0));
+    if(cl!==""&&cl>avail)return invFail(`${nm}: closing (${fq(cl)}) lebih dari stock harini + ditambah (${fq(avail)}). Kalau ada stock masuk, isi di "Ditambah".`);
+    const ar=this.addRec(date,it.id,u.id),rec=this.rec(date,it.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
+    const addCh=(add||0)!==(ar?ar.qty:0),clCh=(cl===""?null:cl)!==(L.cl==null?null:L.cl),priceCh=up!=null&&!(ar&&this.price(ar.id)&&this.price(ar.id).up===up);
+    if(!addCh&&!clCh&&!priceCh)continue;
+    plan.push({it,u,nm,add:add||0,cl,up,avail,ar,addCh,clCh,priceCh,needWhy:(clCh&&L.cl!=null)||(addCh&&ar&&ar.qty>0)});}
+  const st=[];for(const s of stats||[]){const it=this.item(s.itemId);if(!it)continue;const rec=this.rec(date,it.id);if(rec&&rec.st===s.st)continue;if(!rec&&s.st===this.statusAt(it,addDays(date,-1)))continue;st.push({it,st:s.st,needWhy:!!(rec&&rec.st)});}
+  if(!plan.length&&!st.length)return invFail("Tiada perubahan untuk disimpan.");
+  if([...plan,...st].some(x=>x.needWhy)&&!String(why||"").trim())return invFail("Ada nombor yang dah disimpan sebelum ini berubah. Tulis sebab di bawah.",{why:true});
+  /* someone else saved the same items meanwhile? */
+  const ids=[...new Set([...plan,...st].map(x=>date+"_"+x.it.id))],rem=await this.remote("inv_counts",ids);
+  for(const [id,rr] of rem){const l=DB.invCounts.find(x=>x.id===id);if((rr.v||0)>(l?l.v||0:0)){rem.forEach(x=>{const ll=DB.invCounts.find(y=>y.id===x.id);if((x.v||0)>(ll?ll.v||0:0))this.adopt("invCounts",x);});
+    return invFail(`${rr.by} baru simpan ${this.item(rr.itemId).name} (${fmtT(rr.at)}). Nombor terkini dah dipaparkan, semak dan simpan semula.`,{reload:true});}}
+  const now=Date.now(),me=this.me(),W=String(why||"").trim();
+  /* 1) stock added (+ price) */
+  for(const x of plan){if(!x.addCh&&!x.priceCh)continue;let p=x.ar;
+    if(p){p.hist=p.hist||[];const op=this.price(p.id);p.hist.push({v:p.v,at:p.at,by:p.by,date:p.date,itemId:p.itemId,unitId:p.unitId,qty:p.qty,supId:p.supId||"",supName:p.supName||"",inv:"",rm:"",up:op?op.up:null,total:op?op.total:null,chAt:now,chBy:me,why:W});Object.assign(p,{qty:x.add,v:(p.v||0)+1,at:now,by:me});}
+    else{p={id:invAddId(date,x.it.id,x.u.id),date,itemId:x.it.id,unitId:x.u.id,qty:x.add,supId:"",supName:"",inv:"",rm:"Stock harian",v:1,cAt:now,cBy:me,at:now,by:me,hist:[]};DB.invBuys.push(p);}
+    if(owner&&x.up!=null){const i=DB.invPrices.findIndex(q=>q.id===p.id),pr={id:p.id,up:x.up,total:Math.round(x.up*x.add),at:now,by:me};if(i>=0)DB.invPrices[i]=pr;else DB.invPrices.push(pr);}
+    else if(owner&&i0(p.id)){const pr=DB.invPrices.find(q=>q.id===p.id);pr.total=Math.round(pr.up*x.add);}
+    if(x.add>0){const rr=DB.invRestock.find(r=>r.id===x.it.id+"|"+x.u.id);if(rr&&(rr.done||rr.qty!=null||rr.manual))Object.assign(rr,{done:false,qty:null,manual:false,at:now,by:me});}}
+  this.bump();
+  /* 2) closing counts (used = stock today + added − closing) */
+  const byItem=new Map();plan.filter(x=>x.clCh||(x.addCh&&x.cl!=="")).forEach(x=>{if(!byItem.has(x.it.id))byItem.set(x.it.id,{it:x.it,lines:{}});
+    byItem.get(x.it.id).lines[x.u.id]=x.cl===""?{cl:null,us:0,ws:0,rx:0}:{cl:x.cl,us:q3(x.avail-x.cl),ws:0,rx:0};});
+  st.forEach(x=>{if(!byItem.has(x.it.id))byItem.set(x.it.id,{it:x.it,lines:{}});byItem.get(x.it.id).st=x.st;});
+  byItem.forEach(g=>{const patch={lines:g.lines};if(g.st)patch.st=g.st;this.apply(date,g.it,patch,W);});
+  this.bump();
+  const txt=[...plan.map(x=>`${x.nm}: ${x.addCh?"tambah "+fq(x.add)+", ":""}${x.cl!==""?"closing "+fq(x.cl)+" (guna "+fq(q3(x.avail-x.cl))+")":"closing belum"}${x.up!=null?` @ ${RM(x.up)}`:""}`),...st.map(x=>`${x.it.name}: ${INV_ST[x.st]}`)];
+  API.log(W?"Stock harian dibetulkan":"Stock harian",`${fmtD(date)}: ${txt.join("; ")}${W?` · sebab: ${W}`:""}`);save();return ok(plan.length+st.length);};
+const i0=pid=>DB.invPrices.some(q=>q.id===pid);
+const INV_SST={available:"Ada",low:"Sikit",out:"Habis"};
+function invSimple(){const d=ui.invSDate||(ui.invSDate=today()),edit=Inv.canEdit(d),owner=API.isOwner(),all=Inv.items();ui.sd=ui.sd||{};if(ui.sdDate!==d){ui.sd={};ui.sdDate=d;}
+  const D=ui.sd,dv=(k,def)=>k in D?D[k]:def,dis=edit?"":"disabled";
+  const done=all.filter(it=>Inv.rec(d,it.id)).length,pct=all.length?Math.round(done/all.length*100):0;
+  const card=it=>{const rec=Inv.rec(d,it.id);
+    const saved=rec?`<span class="badge b-green">✓ Disimpan · ${esc(rec.by)} ${fmtT(rec.at)}</span>`:"";
+    if(it.mode==="status"){const cur=dv(`${it.id}.st`,rec&&rec.st?rec.st:Inv.statusAt(it,addDays(d,-1)));
+      return`<div class="sitem" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}"><div class="row between"><div class="nm">${esc(it.name)}</div>${saved}</div>
+        <div class="seg" style="margin:8px 0 0">${Object.entries(INV_SST).map(([k,l])=>`<button class="${cur===k?"on":""} sst-${k}" data-a="invSSt" data-id="${it.id}:${k}" ${dis}>${l}</button>`).join("")}</div></div>`;}
+    return`<div class="sitem" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}"><div class="row between"><div class="nm">${esc(it.name)}${it.en?` <span class="muted">${esc(it.en)}</span>`:""}</div>${saved}</div>
+      ${it.units.map(u=>{const k=`${it.id}.${u.id}`,open=Inv.openFor(it,u.id,d),other=Inv.otherBought(it,u.id,d),ar=Inv.addRec(d,it.id,u.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
+        const add=dv(k+".a",ar&&ar.qty?String(ar.qty):""),cl=dv(k+".c",L.cl==null?"":String(L.cl)),pr=dv(k+".p",""),lp=owner?Inv.lastPrice(it,u.id):null;
+        const used=invSUsed(open,other,add,cl);
+        return`<div class="srow" data-k="${k}" data-open="${open}" data-other="${other}">${it.units.length>1?`<div class="su">${esc(u.name)}</div>`:""}
+          <div class="sg"><div class="sbox ro"><small>Stock harini</small><b>${fq(open)}</b></div>
+            <div class="sbox"><small>Ditambah</small><input id="sa_${it.id}_${u.id}" data-sk="${k}.a" inputmode="decimal" placeholder="0" value="${esc(add)}" ${dis}></div>
+            <div class="sbox cl"><small>Closing</small><input id="sc_${it.id}_${u.id}" data-sk="${k}.c" inputmode="decimal" placeholder="kira" value="${esc(cl)}" ${dis}></div></div>
+          <div class="sfoot"><span class="sused">${used}</span>${other?`<span class="muted">+${fq(other)} dari Purchases</span>`:""}
+            ${owner&&edit?`<label class="sprice">Harga RM<input id="sp_${it.id}_${u.id}" data-sk="${k}.p" inputmode="decimal" placeholder="${lp?s2d(lp.pr.up):"optional"}" value="${esc(pr)}"></label>`:""}</div></div>`;}).join("")}</div>`;};
+  const list=INV_CATS.map(c=>{const l=all.filter(i=>i.cat===c.id);return l.length?`<div class="lhead"><h3>${c.en} <span>· ${c.ms}</span></h3><span>${l.filter(i=>Inv.rec(d,i.id)).length}/${l.length}</span></div><div class="card list">${l.map(card).join("")}</div>`:"";}).join("");
+  return`<div class="datebar"><button data-a="invSDay" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===today()?"Hari ini":`<span data-a="invSDayToday" style="text-decoration:underline">Ke hari ini</span>`}</small></div><button data-a="invSDay" data-id="1" ${d>=today()?"disabled style='opacity:.3'":""}>›</button></div>
+  <div class="card" style="padding:12px 14px"><div class="row between"><div><b>Stock harian</b><div class="muted">Isi <b>Ditambah</b> (kalau ada) dan <b>Closing</b>. Stock harini auto dari closing semalam.</div></div><div class="big ${done===all.length?"g":""}" style="flex:none">${done}<small>/${all.length}</small></div></div><div class="pbar"><i style="width:${pct}%"></i></div></div>
+  ${edit?"":`<div class="note">Lihat sahaja. Hanya owner boleh ubah hari sebelum ini.</div>`}
+  <input class="search" type="search" placeholder="Cari item" data-filter="invSList" autocomplete="off">
+  <div id="invSList">${list}<div class="empty" data-none style="display:none">Tiada item.</div></div>
+  ${edit?`${ui.sdWhy?`<div class="field" style="margin-top:12px"><label>Sebab ubah nombor yang dah disimpan</label><input id="sWhy" data-sk="why" value="${esc(dv("why",""))}" placeholder="contoh: tersalah kira" style="border-color:var(--red)"></div>`:""}
+  <div class="sbar"><button class="btn brown block" data-a="invSaveSimple">Simpan semua</button></div>`:""}
+  <p class="muted">Guna = stock harini + ditambah − closing (dikira sendiri). Item yang closing kosong tak disimpan sebagai kiraan.</p>`;}
+function invSUsed(open,other,add,cl){const a=parseQ(add),c=parseQ(cl);if(c===""||c==null)return`<span class="muted">Guna: –</span>`;if(a==null)return"";
+  const u=q3(open+other+(a||0)-c);return u<0?`<span class="down">Closing lebih dari stock!</span>`:`Guna: <b>${fq(u)}</b>`;}
+function invSimpleCollect(){const d=ui.invSDate,D=ui.sd||{},rows=[],stats=[];
+  Inv.items().forEach(it=>{if(it.mode==="status"){if(`${it.id}.st` in D)stats.push({itemId:it.id,st:D[`${it.id}.st`]});return;}
+    it.units.forEach(u=>{const k=`${it.id}.${u.id}`,ar=Inv.addRec(d,it.id,u.id),rec=Inv.rec(d,it.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
+      if(!(k+".a" in D)&&!(k+".c" in D)&&!(k+".p" in D))return;
+      rows.push({itemId:it.id,unitId:u.id,add:k+".a" in D?D[k+".a"]:(ar&&ar.qty?String(ar.qty):""),cl:k+".c" in D?D[k+".c"]:(L.cl==null?"":String(L.cl)),price:D[k+".p"]||""});});});
+  return{rows,stats};}
+
 /* ----- sheet router ----- */
 function invSheet(s,err){switch(s.type){
   case"invCount":return invCountSheet(s,err);case"invItem":return invItemSheet(s);case"invItemEdit":return invItemEditSheet(s,err);
   case"invUsage":return invUsageSheet(s,err);case"invProd":return invProdSheet(s,err);case"invBuy":return invBuySheet(s,err);
   case"invPrice":return invPriceSheet(s);case"invRsAdd":return invRsAddSheet(s,err);case"invLevels":return invLevelsSheet(s,err);
+  case"invMore":return`<h2>Menu Stock</h2><div class="tiles">${invPages().filter(p=>!invMain().includes(p[0])).map(([k,l])=>`<button class="tile ${ui.inv===k?"on":""}" data-a="invPage" data-id="${k}">${invIco(k)}<span>${l}</span></button>`).join("")}</div>`;
   case"invSup":return invSupSheet(s,err);case"invRecipe":return invRecipeSheet(s,err);case"invDelBuy":{const p=DB.invBuys.find(x=>x.id===s.id),it=p&&Inv.item(p.itemId);
     return`<h2>Delete this purchase?</h2><p>${p?`${esc(it?it.name:"")} · ${fmtD(p.date)}`:""}. Stock and spending will be recalculated. The deletion is written to the activity log.</p><div class="grid2"><button class="btn sec" data-a="invBuy" data-id="${s.id}">Cancel</button><button class="btn danger" data-a="invDelBuyYes" data-id="${s.id}">Delete</button></div>`;}}
   return"";}
@@ -851,6 +956,13 @@ function invClick(a,id,el,s){
   switch(a){
     case"invPage":ui.inv=id;ui.sheet=null;if(el.dataset.view){ui.ir=ui.ir||{mode:"week",d:today(),view:"move"};ui.ir.view=el.dataset.view;}scrollTo(0,0);
       requestAnimationFrame(()=>{const c=document.querySelector("#invnav .chip.on");if(c)c.scrollIntoView({inline:"center",block:"nearest"});});return;
+    case"invMore":return open({type:"invMore"}),false;
+    case"invSDay":{const n=addDays(ui.invSDate||today(),+id);if(n<=today())ui.invSDate=n;ui.sdWhy=false;return;}
+    case"invSDayToday":ui.invSDate=today();ui.sdWhy=false;return;
+    case"invSSt":{const[iid,stv]=id.split(":");ui.sd=ui.sd||{};ui.sd[iid+".st"]=stv;return;}
+    case"invSaveSimple":{const{rows,stats}=invSimpleCollect();
+      invBusy(el,Inv.saveSimple(ui.invSDate,rows,stats,(ui.sd||{}).why),r=>{if(!r.ok){if(r.why)ui.sdWhy=true;if(r.reload)ui.sd={};render();toast(r.error,true);return;}
+        ui.sd={};ui.sdWhy=false;toast(`Disimpan (${r.data} item)`);render();});return false;}
     case"invCat":ui.inv="items";ui.invCat=id;return;
     case"invDCat":ui.invDCat=id;return;
     case"invDay":{const n=addDays(ui.invDate||today(),+id);if(n<=today())ui.invDate=n;return;}
@@ -912,7 +1024,10 @@ function invClick(a,id,el,s){
     case"invDelRecipe":Inv.deleteRecipe(s.id);toast("Recipe removed");ui.sheet=null;return;
   }}
 /* typing: keep values in the sheet state (so an error message never wipes them) + live calculations */
-function invInput(ev){const t=ev.target,s=ui.sheet;if(!s||!String(s.type).startsWith("inv")||!t.dataset)return false;
+function invInput(ev){const t=ev.target,s=ui.sheet;
+  if(t.dataset&&t.dataset.sk){ui.sd=ui.sd||{};ui.sd[t.dataset.sk]=t.value;const row=t.closest(".srow");
+    if(row){const k=row.dataset.k,g=x=>{const e=document.getElementById(`s${x}_${k.replace(".","_")}`);return e?e.value:"";};row.querySelector(".sused").innerHTML=invSUsed(+row.dataset.open,+row.dataset.other,g("a"),g("c"));}return true;}
+  if(!s||!String(s.type).startsWith("inv")||!t.dataset)return false;
   if(t.dataset.k){s.f=s.f||{};s.f[t.dataset.k]=t.value;}
   if(s.type==="invCount"&&t.dataset.k&&/\.(rx|us|ws|cl)$/.test(t.dataset.k)){const card=t.closest(".ucard");if(!card)return true;const u=card.dataset.u;
     const g=k=>parseQ(val(`ic_${u}_${k}`)),rx=g("rx")||0,us=g("us")||0,ws=g("ws")||0,cl=g("cl");

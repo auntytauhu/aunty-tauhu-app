@@ -238,7 +238,7 @@ grant select, insert, update, delete on
 -- together unless the owner sets a conversion). Minimum levels start empty:
 -- the owner sets them in the app.
 insert into public.inv_items (id, data) values
-  ('i01','{"id":"i01","name":"Bawang goreng","en":"Fried onions","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"small pack"}],"start":{"u1":15},"startDate":"2026-11-20","active":true}'),
+  ('i01','{"id":"i01","name":"Bawang goreng","en":"Fried onions","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"small pack"},{"id":"u2","name":"large pack"}],"start":{"u1":15,"u2":0},"startDate":"2026-11-20","active":true}'),
   ('i02','{"id":"i02","name":"Cukup rasa","en":"Seasoning","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":17},"startDate":"2026-11-20","active":true}'),
   ('i03','{"id":"i03","name":"Lada","en":"Pepper","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":12},"startDate":"2026-11-20","active":true}'),
   ('i04','{"id":"i04","name":"Tepung jagung","en":"Corn flour","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":20},"startDate":"2026-11-20","active":true}'),
@@ -257,7 +257,13 @@ insert into public.inv_items (id, data) values
   ('i17','{"id":"i17","name":"Tauhu frozen","en":"Frozen tauhu","cat":"frozen","mode":"count","raw":false,"note":"daging","units":[{"id":"u1","name":"pack"}],"start":{"u1":2},"startDate":"2026-11-20","active":true}'),
   ('i18','{"id":"i18","name":"Kuah tauhu","en":"Tauhu sauce","cat":"frozen","mode":"count","raw":false,"units":[{"id":"u1","name":"pack"}],"start":{"u1":10},"startDate":"2026-11-20","active":true}'),
   ('i19','{"id":"i19","name":"Kuah popia","en":"Popia sauce","cat":"frozen","mode":"count","raw":false,"units":[{"id":"u1","name":"pack"}],"start":{"u1":14},"startDate":"2026-11-20","active":true}')
+  ,('i20','{"id":"i20","name":"Kicap","en":"Soy sauce","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"small bottle"},{"id":"u2","name":"large bottle"}],"start":{"u1":0,"u2":0},"startDate":"2026-11-20","active":true}')
 on conflict (id) do nothing;
+
+-- Bawang goreng comes in two sizes (added for databases set up before this)
+update public.inv_items
+   set data = jsonb_set(jsonb_set(data, '{units}', (data->'units') || '[{"id":"u2","name":"large pack"}]'), '{start,u2}', '0')
+ where id = 'i01' and not (data->'units' @> '[{"id":"u2"}]');
 
 select 'Aunty Tauhu database is ready' as result,
        (select string_agg(name || ' (' || role || ')', ', ' order by created_at) from public.profiles) as accounts;
