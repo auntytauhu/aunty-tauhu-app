@@ -249,7 +249,7 @@ const API={
       if(e.retT!=null&&(T<e.retT||P<e.retP))return fail("Packs sent cannot be less than the leftover recorded");
       if(c.promoT>T||c.promoP>P)return fail("Packs sent cannot be less than the promo packs recorded");
       this.log("Stock changed",`${b.name} ${fmtD(date)}: tauhu ${e.sentT}→${T}, popia ${e.sentP}→${P}`);e.sentT=T;e.sentP=P;}
-    else{const s=DB.settings;e={id:uid(),date,boothId,sentT:T,sentP:P,retT:null,retP:null,promos:[],priceT:s.priceT,priceP:s.priceP,pct:s.pct,sentBy:this.me.name,sentAt:Date.now(),closedBy:null,closedAt:null};
+    else{const s=DB.settings;e={id:`${date}_${boothId}`,date,boothId,sentT:T,sentP:P,retT:null,retP:null,promos:[],priceT:s.priceT,priceP:s.priceP,pct:s.pct,sentBy:this.me.name,sentAt:Date.now(),closedBy:null,closedAt:null};
       DB.entries.push(e);this.log("Stock sent",`${b.name} ${fmtD(date)}: tauhu ${T}, popia ${P}`);}
     save();return ok(e);},
   sendAll(date){let n=0;this.activeBooths().forEach(b=>{if(!this.entry(date,b.id)){this.send(date,b.id,b.defT,b.defP);n++;}});return n?ok(n):fail("Every active booth already has stock sent for this day");},
@@ -285,7 +285,7 @@ const API={
     let e=this.vEntry(date,vid);const v=this.vendor(vid);
     if(e){if(e.retT!=null&&(T<e.retT+e.promoT||P<e.retP+e.promoP))return fail("Packs sent cannot be less than leftover + promo already recorded");
       this.log("Vendor stock changed",`${v.name} ${fmtD(date)}: tauhu ${e.sentT}→${T}, popia ${e.sentP}→${P}`);e.sentT=T;e.sentP=P;}
-    else{e={id:uid(),date,vendorId:vid,sentT:T,sentP:P,retT:null,retP:null,promoT:0,promoP:0,priceT:v.priceT,priceP:v.priceP,pct:v.pct,promoPct:v.promoPct,by:this.me.name,at:Date.now()};
+    else{e={id:`${date}_${vid}`,date,vendorId:vid,sentT:T,sentP:P,retT:null,retP:null,promoT:0,promoP:0,priceT:v.priceT,priceP:v.priceP,pct:v.pct,promoPct:v.promoPct,by:this.me.name,at:Date.now()};
       DB.ventries.push(e);this.log("Vendor stock sent",`${v.name} ${fmtD(date)}: tauhu ${T}, popia ${P}`);}
     save();return ok(e);},
   vClose(date,vid,rt,rp,pt,pp){if(!this.isOwner())return fail("Owner only");
@@ -432,7 +432,7 @@ class Pdf{
     const draw=(r,bold,fill)=>{if(this.need(rh)){head();}if(fill)this.rect(X0,this.y,W,rh,fill);
       r.forEach((v,i)=>{const c=cols[i],max=c.w*W-8;const s=fit(v,8,bold,max);const x=c.align==="right"?xs[i]+c.w*W-4:xs[i]+4;this.text(x,this.y+11.5,s,{size:8,bold,align:c.align});});
       this.y+=rh;this.line(X0,this.y,X0+W,this.y);};
-    rows.forEach((r,i)=>draw(r,false,i%2?[251,248,242]:null));
+    rows.forEach((r,i)=>Array.isArray(r)?draw(r,false,i%2?[251,248,242]:null):draw(r.cells,!!r.bold,r.fill||null));
     if(foot)draw(foot,true,[245,239,227]);
     this.y+=6;}
   build(){const objs=[];const font=(n,b)=>`<< /Type /Font /Subtype /Type1 /BaseFont /${b} /Encoding /WinAnsiEncoding >>`;
@@ -571,13 +571,16 @@ function bwaClaimPdf(from,to,list){
   if(R.booths.length){
     pdf.heading("1. Booth sales (consignment)");
     pdf.text(M,pdf.y+4,`Gross ${RM(t.gross)}  -  BWA ${pct}% ${RM(t.bwa)}  =  due to Aunty Tauhu ${RM(t.net)}    |    Packs sold: tauhu ${t.soldT}, popia ${t.soldP}`,{size:8.5,color:[107,111,120]});pdf.y+=12;
-    pdf.table([{h:"Booth",w:.2},{h:"Days",w:.06,align:"right"},{h:"Sent T/P",w:.11,align:"right"},{h:"Sold T",w:.08,align:"right"},{h:"Sold P",w:.08,align:"right"},{h:"Promo",w:.08,align:"right"},{h:"Gross",w:.13,align:"right"},{h:`BWA ${pct}%`,w:.12,align:"right"},{h:"Due",w:.14,align:"right"}],
-      R.booths.map(b=>[b.name,b.days,`${b.sentT}/${b.sentP}`,b.soldT,b.soldP,b.promoQty,RM(b.gross),RM(b.bwa),RM(b.net)]),["Total","",`${t.sentT}/${t.sentP}`,t.soldT,t.soldP,t.promoQty,RM(t.gross),RM(t.bwa),RM(t.net)]);
-    pdf.heading("Booth daily detail");
-    const rows=API.entriesBetween(from,to).map(e=>({e,c:calc(e),n:API.booth(e.boothId).name})).filter(x=>x.c.done).sort((a,b)=>a.e.date.localeCompare(b.e.date)||a.n.localeCompare(b.n));
-    pdf.table([{h:"Date",w:.1},{h:"Booth",w:.17},{h:"Sent T/P",w:.1,align:"right"},{h:"Left T/P",w:.1,align:"right"},{h:"Sold T/P",w:.1,align:"right"},{h:"Promo",w:.12,align:"right"},{h:"Gross",w:.11,align:"right"},{h:"BWA",w:.09,align:"right"},{h:"Due",w:.11,align:"right"}],
-      rows.map(({e,c,n})=>[fmtDs(e.date),n,`${e.sentT}/${e.sentP}`,`${e.retT}/${e.retP}`,`${c.soldT}/${c.soldP}`,c.promoQty?`${c.promoQty} (${RM(c.promoGross)})`:"-",RM(c.gross),RM(c.bwa),RM(c.net)]),
-      ["Total","","","",`${t.soldT}/${t.soldP}`,t.promoQty,RM(t.gross),RM(t.bwa),RM(t.net)]);}
+    /* one table, by date: booths of that day, then the day's total */
+    const ents=API.entriesBetween(from,to).map(e=>({e,c:calc(e),n:API.booth(e.boothId).name})).filter(x=>x.c.done).sort((a,b)=>a.e.date.localeCompare(b.e.date)||a.n.localeCompare(b.n));
+    const rows=[],days=[...new Set(ents.map(x=>x.e.date))];
+    days.forEach(d=>{const l=ents.filter(x=>x.e.date===d),s={T:0,P:0,pr:0,g:0,b:0,n:0};
+      rows.push({cells:[`${dayName(d)}, ${fmtD(d)}`,"","","","","",""],bold:true,fill:[236,226,207]});
+      l.forEach(({c,n},i)=>{s.T+=c.soldT;s.P+=c.soldP;s.pr+=c.promoQty;s.g+=c.gross;s.b+=c.bwa;s.n+=c.net;
+        rows.push({cells:["   "+n,c.soldT,c.soldP,c.promoQty?`${c.promoQty} (${RM(c.promoGross)})`:"-",RM(c.gross),RM(c.bwa),RM(c.net)],fill:i%2?[251,248,242]:null});});
+      rows.push({cells:["   Day total",s.T,s.P,s.pr||"-",RM(s.g),RM(s.b),RM(s.n)],bold:true,fill:[245,239,227]});});
+    pdf.table([{h:"Date / booth",w:.25},{h:"Tauhu sold",w:.11,align:"right"},{h:"Popia sold",w:.11,align:"right"},{h:"Promo",w:.13,align:"right"},{h:"Gross",w:.13,align:"right"},{h:`BWA ${pct}%`,w:.13,align:"right"},{h:"Due",w:.14,align:"right"}],
+      rows,["Total (all days)",t.soldT,t.soldP,t.promoQty||"-",RM(t.gross),RM(t.bwa),RM(t.net)]);}
   if(list.length){
     pdf.heading(`${R.booths.length?"2. ":""}Customer orders through BWA (full price, no BWA cut)`);
     const rows=[];list.forEach(o=>o.items.forEach((i,k)=>rows.push([k?"":o.no,k?"":fmtDs(o.date),k?"":o.customer,i.name,i.qty,RM(i.price),RM(i.qty*i.price)])));
