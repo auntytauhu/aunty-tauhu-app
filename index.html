@@ -557,6 +557,32 @@ function invoicePdf(o){
   pdf.text(pdf.W/2,pdf.H-38,"This is a computer-generated invoice. No signature is required.",{size:7.5,align:"center",color:grey});
   return{inv,data:pdf.build()};}
 
+/* One PDF for BWA: booth statement + BWA customer orders, with one total claim */
+function bwaClaimPdf(from,to,list){
+  const pdf=new Pdf(),M=pdf.M,W=pdf.W-2*M,R=report(from,to),t=R.tot,pct=DB.settings.pct,ot=list.reduce((a,o)=>a+orderTotal(o),0);
+  pdfHead(pdf,"Claim to BWA","Booth sales + customer orders through BWA",periodTxt(from,to),`Prepared ${new Date().toLocaleString("en-GB")}`);
+  const bw=(W-12)/3,box=(x,l,v,dark)=>{pdf.rect(x,pdf.y,bw,46,dark?[21,33,58]:[245,239,227]);pdf.text(x+8,pdf.y+15,l,{size:7.5,color:dark?[200,208,224]:[107,111,120]});pdf.text(x+8,pdf.y+34,v,{size:14,bold:true,color:dark?[255,255,255]:[14,23,38]});};
+  box(M,`Booth sales (after BWA ${pct}%)`,RM(t.net));box(M+bw+6,`BWA orders (${list.length}, full price)`,RM(ot));box(M+2*(bw+6),"Total claim from BWA",RM(t.net+ot),true);
+  pdf.y+=56;if(R.pending)pdf.text(M,pdf.y,`Note: ${R.pending} booth record(s) without leftover are not included.`,{size:8,color:[154,103,0]}),pdf.y+=10;
+  if(R.booths.length){
+    pdf.heading("1. Booth sales (consignment)");
+    pdf.text(M,pdf.y+4,`Gross ${RM(t.gross)}  -  BWA ${pct}% ${RM(t.bwa)}  =  due to Aunty Tauhu ${RM(t.net)}    |    Packs sold: tauhu ${t.soldT}, popia ${t.soldP}`,{size:8.5,color:[107,111,120]});pdf.y+=12;
+    pdf.table([{h:"Booth",w:.2},{h:"Days",w:.06,align:"right"},{h:"Sent T/P",w:.11,align:"right"},{h:"Sold T",w:.08,align:"right"},{h:"Sold P",w:.08,align:"right"},{h:"Promo",w:.08,align:"right"},{h:"Gross",w:.13,align:"right"},{h:`BWA ${pct}%`,w:.12,align:"right"},{h:"Due",w:.14,align:"right"}],
+      R.booths.map(b=>[b.name,b.days,`${b.sentT}/${b.sentP}`,b.soldT,b.soldP,b.promoQty,RM(b.gross),RM(b.bwa),RM(b.net)]),["Total","",`${t.sentT}/${t.sentP}`,t.soldT,t.soldP,t.promoQty,RM(t.gross),RM(t.bwa),RM(t.net)]);
+    pdf.heading("Booth daily detail");
+    const rows=API.entriesBetween(from,to).map(e=>({e,c:calc(e),n:API.booth(e.boothId).name})).filter(x=>x.c.done).sort((a,b)=>a.e.date.localeCompare(b.e.date)||a.n.localeCompare(b.n));
+    pdf.table([{h:"Date",w:.1},{h:"Booth",w:.17},{h:"Sent T/P",w:.1,align:"right"},{h:"Left T/P",w:.1,align:"right"},{h:"Sold T/P",w:.1,align:"right"},{h:"Promo",w:.12,align:"right"},{h:"Gross",w:.11,align:"right"},{h:"BWA",w:.09,align:"right"},{h:"Due",w:.11,align:"right"}],
+      rows.map(({e,c,n})=>[fmtDs(e.date),n,`${e.sentT}/${e.sentP}`,`${e.retT}/${e.retP}`,`${c.soldT}/${c.soldP}`,c.promoQty?`${c.promoQty} (${RM(c.promoGross)})`:"-",RM(c.gross),RM(c.bwa),RM(c.net)]),
+      ["Total","","","",`${t.soldT}/${t.soldP}`,t.promoQty,RM(t.gross),RM(t.bwa),RM(t.net)]);}
+  if(list.length){
+    pdf.heading(`${R.booths.length?"2. ":""}Customer orders through BWA (full price, no BWA cut)`);
+    const rows=[];list.forEach(o=>o.items.forEach((i,k)=>rows.push([k?"":o.no,k?"":fmtDs(o.date),k?"":o.customer,i.name,i.qty,RM(i.price),RM(i.qty*i.price)])));
+    pdf.table([{h:"Order",w:.12},{h:"Date",w:.09},{h:"Customer",w:.19},{h:"Item",w:.28},{h:"Qty",w:.07,align:"right"},{h:"Price",w:.12,align:"right"},{h:"Amount",w:.13,align:"right"}],rows,["Total orders","","","","","",RM(ot)]);}
+  pdf.need(60);pdf.y+=8;pdf.rect(M,pdf.y,W,30,[21,33,58]);pdf.text(M+10,pdf.y+19,"TOTAL CLAIM FROM BWA",{size:10,bold:true,color:[255,255,255]});
+  pdf.text(pdf.W-M-10,pdf.y+20,`${RM(t.net)} + ${RM(ot)} = ${RM(t.net+ot)}`,{size:11,bold:true,align:"right",color:[255,255,255]});pdf.y+=38;
+  pdf.need(90);pdf.y+=24;
+  [["Prepared by (Aunty Tauhu)",M],["Verified & received by (BWA)",M+W/2+10]].forEach(([l,x])=>{pdf.line(x,pdf.y+30,x+W/2-20,pdf.y+30,[14,23,38],0.8);pdf.text(x,pdf.y+44,l,{size:8.5,color:[107,111,120]});pdf.text(x,pdf.y+58,"Date:",{size:8.5,color:[107,111,120]});});
+  pdfFoot(pdf,"Claim to BWA");return pdf.build();}
 function boothPdf(from,to){
   const pdf=new Pdf(),M=pdf.M,W=pdf.W-2*M,R=report(from,to),t=R.tot,pct=DB.settings.pct;
   pdfHead(pdf,"Booth Sales Statement","BWA booths (consignment)",periodTxt(from,to),`Prepared ${new Date().toLocaleString("en-GB")}`);
@@ -787,11 +813,11 @@ function reportView(){
   ${salesReportSection(from,to)}
   ${(()=>{const list=R.orders.filter(o=>!ui.claimUnclaimed||!o.paid),cl=list.reduce((a,o)=>a+orderTotal(o),0),uncl=list.filter(o=>!o.paid);
    return`<div class="card" style="margin-top:12px;border:2px solid var(--sand)"><b>Claim your money from BWA</b><p class="muted" style="margin:4px 0 10px">For ${fmtD(from)}${from!==to?" – "+fmtD(to):""}</p>
-   <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--b200)"><div><b>Booth sales</b><div class="muted">${R.booths.length} booth(s) · due to you ${RM(t.net)}</div></div></div>
-   ${DL?`<button class="btn block" style="margin:8px 0 12px" data-a="boothPdf" ${R.booths.length?"":"disabled"}>Download booth statement PDF</button>`:""}
-   <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--b200)"><div><b>BWA orders</b><div class="muted">${list.length} order(s) · ${RM(cl)}</div></div></div>
+   <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--b200)"><div><b>Booth sales</b><div class="muted">${R.booths.length} booth(s) · due after BWA ${DB.settings.pct}%</div></div><b>${RM(t.net)}</b></div>
+   <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--b200)"><div><b>BWA orders</b><div class="muted">${list.length} order(s) · full price</div></div><b>${RM(cl)}</b></div>
    <div class="switch" style="padding:6px 0"><span class="muted">Only orders not yet claimed</span><button class="${ui.claimUnclaimed?"on":""}" data-a="claimOpt"></button></div>
-   ${DL?`<button class="btn brown block" style="margin-top:4px" data-a="claimPdf" ${list.length?"":"disabled"}>Download BWA orders PDF</button>`:""}
+   <div class="row between" style="padding:8px 0 4px"><b style="font-size:16px">Total claim</b><b style="font-size:18px">${RM(t.net+cl)}</b></div>
+   ${DL?`<button class="btn block" style="margin-top:8px" data-a="bwaClaimPdf" ${R.booths.length||list.length?"":"disabled"}>Download BWA claim PDF</button><div class="muted" style="margin-top:6px;text-align:center">One PDF: booth statement + BWA orders</div>`:""}
    ${uncl.length?`<button class="btn ghost block" style="margin-top:8px" data-a="markClaimed">Mark ${uncl.length} order(s) as claimed</button>`:""}</div>`;})()}
   ${historySection()}
   <h3>Packs sold</h3>
@@ -1100,6 +1126,8 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"oStatus":API.setOrderStatus(s.id,id);toast("Order "+ST_LABEL[id].toLowerCase());break;
     case"paid":API.togglePaid(s.id);break;
     case"custPaid":API.toggleCustPaid(s.id);toast(custPaid(DB.orders.find(o=>o.id===s.id))?"Marked as paid":"Marked as not paid");break;
+    case"bwaClaimPdf":{const[from,to]=periodRange(ui.period),R=report(from,to),list=R.orders.filter(o=>!ui.claimUnclaimed||!o.paid);
+      if(!R.booths.length&&!list.length){toast("Nothing to claim for these dates",true);return;}saveFile(`Aunty-Tauhu-BWA-claim-${from}${from!==to?"_to_"+to:""}.pdf`,bwaClaimPdf(from,to,list));return;}
     case"boothPdf":{const[from,to]=periodRange(ui.period);saveFile(`Aunty-Tauhu-booth-statement-${from}${from!==to?"_to_"+to:""}.pdf`,boothPdf(from,to));return;}
     case"cmpMode":ui.cmpMode=id;break;
     case"history":return open({type:"history",id,range:"month"});
