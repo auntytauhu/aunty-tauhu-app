@@ -32,14 +32,17 @@ function appDaySales(from,to){const R=report(from,to),t=R.tot;
   return{rows:[["BWA booths (after BWA cut)",t.net],["Vendors DD / Kuekas (after cut)",t.vNet],["BWA orders (to claim)",t.orders],["Aunty Tauhu orders",t.direct]],total:grand(t),pending:R.pending,R};}
 /* Booths page: "Total sales today" card */
 function salesDayCard(d){if(!API.isOwner())return"";const A=appDaySales(d,d),P=Pos.get(d,d),pd=P&&P.days?Pos.sum(P.days):null;
-  const posRow=pd?`<div class="r"><span>POS shop & events${pd.tx?` <span class="muted">(${pd.tx} sale${pd.tx>1?"s":""})</span>`:""}</span><b>${RM(pd.net)}</b></div>`
-    :`<div class="r"><span>POS shop & events</span><span class="muted">${P&&P.err?"–":"loading…"}</span></div>`;
-  return`<div class="card calc" style="border:2px solid var(--navy);margin-top:12px"><div class="row between" style="margin-bottom:6px"><b style="font-size:16px">Total sales today</b><span class="muted">${fmtDs(d)}</span></div>
+  /* one line per POS location / event, e.g. "POS UM unity fest" */
+  const locs=pd?Object.entries(pd.locs).sort((a,b)=>b[1].net-a[1].net):[];
+  const posRow=!pd?`<div class="r"><span>POS</span><span class="muted">${P&&P.err?"–":"loading…"}</span></div>`
+    :!locs.length?`<div class="r"><span>POS</span><span class="muted">no sales</span></div>`
+    :locs.map(([n,x])=>`<div class="r"><span>POS ${esc(n)} <span class="muted">(${x.net?`${x.tx} sale${x.tx>1?"s":""}`:"all refunded"})</span></span><b>${RM(x.net)}</b></div>`).join("");
+  return`<div class="card calc" style="border:2px solid var(--navy);margin-top:12px"><div class="row between" style="margin-bottom:6px"><b style="font-size:16px">${d===today()?"Total sales today":"Total sales"}</b><span class="muted">${fmtDs(d)}</span></div>
    ${A.rows.map(([l,v])=>`<div class="r"><span>${l}</span><span>${RM(v)}</span></div>`).join("")}${posRow}
    <div class="r t"><span>Aunty Tauhu total</span><span>${RM(A.total+(pd?pd.net:0))}</span></div>
    ${A.pending?`<div class="muted" style="margin-top:4px">${A.pending} booth/vendor record${A.pending>1?"s":""} without leftover yet, not counted.</div>`:""}
    ${P&&P.err?`<div class="muted" style="margin-top:4px;color:var(--amber)">${esc(Pos.errText(P.err))}${pd?" (last POS figures shown)":""}</div>`:""}
-   ${pd&&Object.keys(pd.locs).length?`<div class="muted" style="margin-top:6px">POS: ${Object.entries(pd.locs).filter(([,x])=>x.net).map(([n,x])=>`${esc(n)} ${RM(x.net)}`).join(" · ")||"no sales"}</div>`:""}</div>`;}
+   ${locs.length>1?`<div class="muted" style="margin-top:6px">POS all events: ${RM(pd.net)}</div>`:""}</div>`;}
 /* Reports page: POS section + overall daily totals */
 function salesReportSection(from,to){if(!API.isOwner())return"";const A=appDaySales(from,to),P=Pos.get(from,to),pd=P&&P.days?Pos.sum(P.days):null;
   const byDay={};A.R.days.forEach(d=>{byDay[d.date]={app:grand(d),pos:0};});(P&&P.days||[]).forEach(d=>{(byDay[d.date]=byDay[d.date]||{app:0,pos:0}).pos=d.netS;});
