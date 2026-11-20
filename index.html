@@ -651,8 +651,8 @@ function loginView(){const sign=Auth.mode==="signup";
    <div class="field"><label>Email</label><input id="aE" type="email" inputmode="email" autocomplete="username" autocapitalize="off"></div>
    <div class="field"><label>Password</label><input id="aP" type="password" autocomplete="${sign?"new-password":"current-password"}"></div>
    <button class="btn block" type="submit">${sign?"Create account":"Log in"}</button></form>
-  <button class="btn ghost block" data-a="authMode">${sign?"I already have an account":"New staff? Create an account"}</button>
-  ${sign?`<p class="muted" style="text-align:center">The owner must approve new accounts before they can be used.</p>`:""}</div>`;}
+  <button class="btn ghost block" data-a="authMode">${sign?"I already have an account":"First time? Create an account"}</button>
+  ${sign?`<p class="muted" style="text-align:center">The first account becomes the owner. After that, the owner must approve new staff accounts.</p>`:""}</div>`;}
 
 /* ----- BOOTHS (daily) ----- */
 function todayView(){
