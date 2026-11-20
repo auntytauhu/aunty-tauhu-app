@@ -14,6 +14,7 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="inventory.js?v=1"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -176,9 +177,9 @@ const monday=s=>{const d=new Date(s+"T00:00:00");return addDays(s,-((d.getDay()+
 const uid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 const MENU_CATS=["Tauhu","Popia","Add-on"];
 /* app collection -> Supabase table (each table: id text, data jsonb, updated_at) */
-const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"vendor_entries",menu:"menu",orders:"orders",audit:"audit"};
+const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"vendor_entries",menu:"menu",orders:"orders",audit:"audit",...INV_COLL};
 const KV=["settings","business"];
-const emptyDB=()=>({settings:{priceT:1200,priceP:1000,pct:20,kitchenSeesMoney:false},business:{...BUSINESS},booths:[],entries:[],vendors:[],ventries:[],menu:[],orders:[],audit:[]});
+const emptyDB=()=>({settings:{priceT:1200,priceP:1000,pct:20,kitchenSeesMoney:false},business:{...BUSINESS},booths:[],entries:[],vendors:[],ventries:[],menu:[],orders:[],audit:[],...invEmpty()});
 let DB=emptyDB();
 const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSync:0,
   key(){return"aunty-tauhu-cache-"+(API.me?API.me.id:"x");},
@@ -206,7 +207,9 @@ const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSy
         this.snap[c]=cur;}
       for(const k of KV){const j=JSON.stringify(DB[k]);if(this.snap["kv:"+k]!==j){const{error}=await this.sb.from("kv").upsert({id:k,data:DB[k],updated_at:now});if(error)throw error;this.snap["kv:"+k]=j;}}
       this.lastSync=Date.now();this.setOnline(true);
-    }catch(e){console.error("sync",e);this.setOnline(false);clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush(),15000);}
+    }catch(e){console.error("sync",e);
+      if(e&&e.code==="42501"){toast("A change was not allowed (only the owner can edit earlier records). Showing the latest saved data.",true);try{await this.loadAll();this.setOnline(true);render();}catch(e2){this.setOnline(false);}}
+      else{this.setOnline(false);clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush(),15000);}}
     finally{this.busy=false;this.cache();if(this.again){this.again=false;this.flush();}}},
   /* send local changes first, then pull everyone's latest data */
   async refresh(manual){if(!this.sb||!API.me||API.me.role==="pending")return;
@@ -583,7 +586,7 @@ function chg(a,b){if(!a&&!b)return`<span class="muted">–</span>`;if(!b)return`
 
 /* ---------- DOWNLOADS (Claude app share sheet) ---------- */
 /* On the phone: share sheet (Save to Files, WhatsApp...). Inside Claude: Claude's own download. */
-const NativeDL={async save({filename,data}){const type=filename.endsWith(".pdf")?"application/pdf":"text/csv";const file=new File([data],filename,{type});
+const NativeDL={async save({filename,data}){const type=filename.endsWith(".pdf")?"application/pdf":filename.endsWith(".xlsx")?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":"text/csv";const file=new File([data],filename,{type});
   if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:filename});return{status:"saved"};}catch(e){if(e&&e.name==="AbortError")throw{code:"declined"};}}
   const url=URL.createObjectURL(file),a=document.createElement("a");a.href=url;a.download=filename;a.target="_blank";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);return{status:"saved"};}};
 let DL=NativeDL;
@@ -653,11 +656,11 @@ setInterval(()=>{if(document.visibilityState==="visible"&&ui.screen==="app"&&!ui
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ui={tab:"today",date:today(),period:"week",orderFilter:"upcoming",sheet:null,pdf:{daily:true,weekly:true,booths:true,vendors:true,orders:true,packs:true},claimUnclaimed:true,orderCh:"bwa"};
-const ICONS={vendors:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',today:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+const ICONS={stock:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',vendors:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',today:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   settings:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',more:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'};
 const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
 let tt;function toast(m,err){let el=$(".toast");if(el)el.remove();el=document.createElement("div");el.className="toast"+(err?" err":"");el.textContent=m;document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(()=>el.remove(),2600);}
-function tabs(){if(API.isOwner())return[["today","Booths"],["vendors","Vendors"],["orders","Orders"],["report","Reports"],["settings","Settings"]];return[["orders","Orders"],["more","Account"]];}
+function tabs(){if(API.isOwner())return[["today","Booths"],["vendors","Vendors"],["orders","Orders"],["stock","Stock"],["report","Reports"],["settings","Settings"]];return[["orders","Orders"],["stock","Stock"],["more","Account"]];}
 
 function render(){
   const sc=ui.screen||"loading";
@@ -666,9 +669,9 @@ function render(){
   if(sc==="pending"){$("#root").innerHTML=`<div class="login"><div class="hero"><img src="${LOGO_PNG}" alt="Aunty Tauhu"></div><div class="card"><b>Hi ${esc(API.me.name)}!</b><p class="muted">Your account is waiting for the owner to approve it. Ask the owner to open <b>Settings → Staff</b> and tap <b>Approve</b>.</p><button class="btn block" data-a="recheck">Check again</button><button class="btn ghost block" style="margin-top:10px" data-a="logout">Log out</button></div></div>`;return;}
   if(sc==="login"||!API.me){$("#root").innerHTML=loginView();return;}
   const T=tabs();if(!T.some(t=>t[0]===ui.tab))ui.tab="today";
-  const body={today:todayView,vendors:vendorsView,orders:ordersView,report:reportView,settings:settingsView,more:moreView}[ui.tab]();
+  const body={today:todayView,vendors:vendorsView,orders:ordersView,report:reportView,settings:settingsView,more:moreView,stock:invView}[ui.tab]();
   const scroll=ui.sheet&&$(".sheet")?$(".sheet").scrollTop:0;
-  $("#root").innerHTML=`<div class="app"><header><div><img class="hlogo" src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="hsub">${API.isOwner()?"Booths, vendors & orders":"Customer orders"}</div></div>
+  $("#root").innerHTML=`<div class="app"><header><div><img class="hlogo" src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="hsub">${ui.tab==="stock"?"Inventory":API.isOwner()?"Booths, vendors & orders":"Orders & stock"}</div></div>
    <div class="who"><b>${esc(API.me.name)}</b>${ROLE_LABELS[API.me.role]}<br><button class="sync ${Sync.online?"":"off"}" data-a="refresh">${Sync.online?"⟳ Sync":"Offline · retry"}</button></div></header>
    ${Sync.online?"":`<div class="offbar">No connection. Your changes are saved on this phone and will be sent automatically.</div>`}
    <main>${body}</main><nav><div class="in">${T.map(([id,l])=>`<button class="${ui.tab===id?"on":""}" data-a="tab" data-id="${id}">${icon(id)}${l}</button>`).join("")}</div></nav></div>${ui.sheet?sheetView():""}`;
@@ -896,7 +899,7 @@ function settingsView(){const s=DB.settings;
    <div class="field"><label>Popia (RM)</label><input id="sP" inputmode="decimal" value="${s2d(s.priceP)}"></div>
    <div class="field"><label>BWA (%)</label><input id="sC" inputmode="decimal" value="${s.pct}"></div></div>
    <button class="btn block" data-a="saveSettings">Save</button></div>
-  <div class="card switch"><div><b>Kitchen staff can see order prices</b><div class="muted">Kitchen staff only see customer orders. When off, they see items and pack counts, not prices.</div></div><button class="${s.kitchenSeesMoney?"on":""}" data-a="toggleMoney" aria-label="Toggle"></button></div>
+  <div class="card switch"><div><b>Kitchen staff can see order prices</b><div class="muted">Kitchen staff see customer orders and stock (no purchase prices). When off, they see items and pack counts, not prices.</div></div><button class="${s.kitchenSeesMoney?"on":""}" data-a="toggleMoney" aria-label="Toggle"></button></div>
   <div class="note">Booths and vendors are now managed on their own pages: tap a booth or vendor, then <b>Edit</b>.</div>
   <div class="row between"><h3>Customer order menu</h3><button class="btn sm sec" data-a="menuEdit" data-id="">+ Add item</button></div>
   <div class="card list">${DB.menu.map(m=>`<button class="item" data-a="menuEdit" data-id="${m.id}"><div class="grow"><b>${esc(m.name)}</b> ${m.active?"":`<span class="badge b-navy">Hidden</span>`}<div class="muted">${esc(m.cat)}</div></div><b>${RM(m.price)}</b></button>`).join("")}</div>
@@ -908,7 +911,7 @@ function staffSection(){
     return`<div class="item"><div class="avatar">${esc((p.name||"?")[0].toUpperCase())}</div><div class="grow"><b>${esc(p.name||"")}</b>${me?" (you)":""} <span class="badge ${p.role==="owner"?"b-sand":p.role==="kitchen"?"b-green":"b-red"}">${ROLE_LABELS[p.role]}</span>
      <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn sm sec" data-a="pinSheet" data-id="${p.id}">${me?"Change my PIN":"Reset PIN"}</button>
      ${me?"":`${p.role==="pending"?`<button class="btn sm green" data-a="setRole" data-id="${p.id}" data-role="kitchen">Give access</button>`:""}${p.role==="owner"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="kitchen">Make kitchen staff</button>`:""}${p.role==="kitchen"?`<button class="btn sm sec" data-a="setRole" data-id="${p.id}" data-role="owner">Make owner</button>`:""}${p.role!=="pending"?`<button class="btn sm ghost" style="color:var(--red)" data-a="setRole" data-id="${p.id}" data-role="pending">Remove access</button>`:""}`}</div></div></div>`;}).join(""):`<div class="muted">Loading…</div>`}</div>
-  <p class="muted">Staff log in with their <b>name</b> and <b>PIN</b>. Kitchen staff only see customer orders.</p>`;}
+  <p class="muted">Staff log in with their <b>name</b> and <b>PIN</b>. Kitchen staff see customer orders and do the daily stock update.</p>`;}
 /* ----- ACCOUNT ----- */
 function moreView(){return`<div class="card row"><div class="avatar">${esc(API.me.name[0])}</div><div class="grow"><b>${esc(API.me.name)}</b><div class="muted">${ROLE_LABELS[API.me.role]}</div></div><button class="btn sm sec" data-a="logout">Log out</button></div>
   <p class="muted" style="margin:-4px 0 12px">Forgot your PIN? Ask the owner to reset it.</p>
@@ -988,6 +991,7 @@ function sheetView(){const s=ui.sheet,err=s.error?`<div class="err-box">${esc(s.
   else if(s.type==="vendor")h=vendorSheet(s,err);
   else if(s.type==="trend")h=trendSheet(s);
   else if(s.type==="history")h=historySheet(s);
+  else if(String(s.type).startsWith("inv"))h=invSheet(s,err);
   else if(s.type==="addStaff"){h=`<h2>Add staff</h2>${err}<div class="field"><label>Name (they log in with this)</label><input id="sfN" autocapitalize="words" placeholder="e.g. Kak Yah"></div>
     <div class="field"><label>PIN (4–8 numbers)</label><input id="sfP" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="e.g. 2580"><div class="hint">Tell them their name and PIN. Only you (the owner) can change it later.</div></div>
     <div class="field"><label>Access</label><div class="seg" style="margin:0">${[["kitchen","Kitchen staff (orders only)"],["owner","Owner (everything)"]].map(([k,l])=>`<button class="${(s.role||"kitchen")===k?"on":""}" data-a="sfRole" data-id="${k}">${l}</button>`).join("")}</div></div>
@@ -1119,8 +1123,10 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"doFresh":{const r=API.clearRecords();if(failed(r))return;ui.sheet=null;ui.tab="today";toast("All records cleared. Ready to start!");break;}
 
     case"closeSheet":ui.sheet=null;break;
+    default:if(a.startsWith("inv")&&invClick(a,id,el,s)===false)return;
   }render();});
 /* search boxes: case-insensitive filter, no re-render (keeps the keyboard open) */
+document.addEventListener("input",ev=>{invInput(ev);});
 document.addEventListener("input",ev=>{const t=ev.target;if(!t.dataset||!t.dataset.filter)return;const q=t.value.trim().toLowerCase(),box=document.getElementById(t.dataset.filter);if(!box)return;
   let n=0;box.querySelectorAll("[data-name]").forEach(el=>{const show=!q||el.dataset.name.includes(q);el.style.display=show?"":"none";if(show)n++;});const none=box.querySelector("[data-none]");if(none)none.style.display=n?"none":"";});
 document.addEventListener("input",ev=>{const t=ev.target,s=ui.sheet;if(!s||s.type!=="orderForm")return;
@@ -1129,7 +1135,7 @@ document.addEventListener("input",ev=>{const t=ev.target,s=ui.sheet;if(!s||s.typ
   if(t.id&&t.id.startsWith("q_")){const n=API.int(t.value)??0;s.form.qty[t.id.slice(2)]=n;t.closest(".step").classList.toggle("has",n>0);$("#oTotal").textContent=formTotalText(s.form);}});
 document.addEventListener("submit",ev=>{if(ev.target.id!=="authForm")return;ev.preventDefault();const n=val("aN"),pin=val("aP");
   if(Auth.mode==="setup")Auth.setupOwner(n,pin,val("aP2"));else Auth.login(n,pin);});
-document.addEventListener("change",ev=>{if((ev.target.id==="hFrom"||ev.target.id==="hTo")&&ui.sheet){ui.sheet.from=val("hFrom");ui.sheet.to=val("hTo");if(ui.sheet.from>ui.sheet.to)[ui.sheet.from,ui.sheet.to]=[ui.sheet.to,ui.sheet.from];render();return;}if(ev.target.id==="from"||ev.target.id==="to"){ui.from=val("from");ui.to=val("to");if(ui.from>ui.to)[ui.from,ui.to]=[ui.to,ui.from];render();}});
+document.addEventListener("change",ev=>{if(invChange(ev))return;if((ev.target.id==="hFrom"||ev.target.id==="hTo")&&ui.sheet){ui.sheet.from=val("hFrom");ui.sheet.to=val("hTo");if(ui.sheet.from>ui.sheet.to)[ui.sheet.from,ui.sheet.to]=[ui.sheet.to,ui.sheet.from];render();return;}if(ev.target.id==="from"||ev.target.id==="to"){ui.from=val("from");ui.to=val("to");if(ui.from>ui.to)[ui.from,ui.to]=[ui.to,ui.from];render();}});
 Auth.init();
 </script>
 </body>

@@ -174,5 +174,90 @@ update public.profiles set role = 'owner'
 where id = (select id from public.profiles order by created_at, email limit 1)
   and not exists (select 1 from public.profiles where role = 'owner');
 
+-- =====================================================================
+-- INVENTORY (raw materials, packaging, frozen & sauce)
+-- Kept completely separate from booth/vendor/BWA settlement records.
+--   owner   : everything (items, suppliers, prices, minimum levels, reports)
+--   kitchen : read items/suppliers/stock; record daily stock, usage,
+--             stock received and production for TODAY (yesterday is also
+--             accepted so a late sync after midnight is not lost).
+--             Cannot read purchase prices. Cannot delete anything.
+-- =====================================================================
+do $$
+declare t text;
+begin
+  foreach t in array array['inv_items','inv_suppliers','inv_counts','inv_purchases','inv_prices','inv_restock','inv_recipes','inv_production'] loop
+    execute format('create table if not exists public.%I (
+      id text primary key,
+      data jsonb not null,
+      updated_at timestamptz not null default now())', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists owner_all on public.%I', t);
+    execute format('create policy owner_all on public.%I for all to authenticated
+      using (public.my_role() = ''owner'') with check (public.my_role() = ''owner'')', t);
+  end loop;
+end $$;
+
+-- today's date in Malaysia (the server clock is UTC)
+create or replace function public.kl_today()
+returns date language sql stable as $$ select (now() at time zone 'Asia/Kuala_Lumpur')::date $$;
+grant execute on function public.kl_today() to authenticated;
+
+-- kitchen staff: read (prices table excluded on purpose)
+do $$
+declare t text;
+begin
+  foreach t in array array['inv_items','inv_suppliers','inv_counts','inv_purchases','inv_restock','inv_recipes','inv_production'] loop
+    execute format('drop policy if exists kitchen_select on public.%I', t);
+    execute format('create policy kitchen_select on public.%I for select to authenticated using (public.my_role() = ''kitchen'')', t);
+  end loop;
+  -- kitchen staff: add / correct records dated today (or yesterday, for late sync) only
+  foreach t in array array['inv_counts','inv_purchases','inv_production'] loop
+    execute format('drop policy if exists kitchen_insert on public.%I', t);
+    execute format('drop policy if exists kitchen_update on public.%I', t);
+    execute format('create policy kitchen_insert on public.%I for insert to authenticated
+      with check (public.my_role() = ''kitchen'' and (data->>''date'')::date >= public.kl_today() - 1)', t);
+    execute format('create policy kitchen_update on public.%I for update to authenticated
+      using (public.my_role() = ''kitchen'' and (data->>''date'')::date >= public.kl_today() - 1)
+      with check (public.my_role() = ''kitchen'' and (data->>''date'')::date >= public.kl_today() - 1)', t);
+  end loop;
+end $$;
+-- kitchen staff: tick items on the restock list
+drop policy if exists kitchen_insert on public.inv_restock;
+drop policy if exists kitchen_update on public.inv_restock;
+create policy kitchen_insert on public.inv_restock for insert to authenticated with check (public.my_role() = 'kitchen');
+create policy kitchen_update on public.inv_restock for update to authenticated using (public.my_role() = 'kitchen') with check (public.my_role() = 'kitchen');
+
+grant select, insert, update, delete on
+  public.inv_items, public.inv_suppliers, public.inv_counts, public.inv_purchases,
+  public.inv_prices, public.inv_restock, public.inv_recipes, public.inv_production
+  to authenticated;
+
+-- ---------- starting stock (20 Nov 2026), only added if missing ----------
+-- Units are kept separate (e.g. large sacks and small sacks are never added
+-- together unless the owner sets a conversion). Minimum levels start empty:
+-- the owner sets them in the app.
+insert into public.inv_items (id, data) values
+  ('i01','{"id":"i01","name":"Bawang goreng","en":"Fried onions","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"small pack"}],"start":{"u1":15},"startDate":"2026-11-20","active":true}'),
+  ('i02','{"id":"i02","name":"Cukup rasa","en":"Seasoning","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":17},"startDate":"2026-11-20","active":true}'),
+  ('i03','{"id":"i03","name":"Lada","en":"Pepper","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":12},"startDate":"2026-11-20","active":true}'),
+  ('i04','{"id":"i04","name":"Tepung jagung","en":"Corn flour","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":20},"startDate":"2026-11-20","active":true}'),
+  ('i05','{"id":"i05","name":"Minyak","en":"Cooking oil","cat":"dry","mode":"count","raw":true,"units":[{"id":"u1","name":"bottle"}],"start":{"u1":12},"startDate":"2026-11-20","active":true}'),
+  ('i06','{"id":"i06","name":"Kentang","en":"Potatoes","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"large sack"},{"id":"u2","name":"small sack"}],"start":{"u1":8,"u2":3},"startDate":"2026-11-20","active":true}'),
+  ('i07','{"id":"i07","name":"Tahu","en":"Tahu","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"large pack"}],"start":{"u1":7},"startDate":"2026-11-20","active":true}'),
+  ('i08','{"id":"i08","name":"Telur","en":"Eggs","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"tray"}],"start":{"u1":15},"startDate":"2026-11-20","active":true}'),
+  ('i09','{"id":"i09","name":"Daging burger","en":"Burger meat","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":33},"startDate":"2026-11-20","active":true}'),
+  ('i10','{"id":"i10","name":"Burger ayam","en":"Chicken burger","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":10},"startDate":"2026-11-20","active":true}'),
+  ('i11','{"id":"i11","name":"Daun sup","en":"Soup leaves","cat":"wet","mode":"status","raw":true,"units":[],"start":{},"startStatus":"available","startDate":"2026-11-20","active":true}'),
+  ('i12','{"id":"i12","name":"Kulit popia","en":"Spring roll pastry","cat":"wet","mode":"count","raw":true,"units":[{"id":"u1","name":"pack"}],"start":{"u1":2},"startDate":"2026-11-20","active":true}'),
+  ('i13','{"id":"i13","name":"Kotak small","en":"Small box","cat":"pack","mode":"count","raw":false,"units":[{"id":"u1","name":"carton"},{"id":"u2","name":"plastic"}],"start":{"u1":2,"u2":1},"startDate":"2026-11-20","active":true}'),
+  ('i14','{"id":"i14","name":"Bekas medium","en":"Medium container","cat":"pack","mode":"count","raw":false,"units":[{"id":"u1","name":"plastic"},{"id":"u2","name":"pack"}],"start":{"u1":3,"u2":27},"startDate":"2026-11-20","active":true}'),
+  ('i15','{"id":"i15","name":"Kotak large","en":"Large box","cat":"pack","mode":"status","raw":false,"units":[],"start":{},"startStatus":"available","startDate":"2026-11-20","active":true}'),
+  ('i16','{"id":"i16","name":"Popia small","en":"Small popia container","cat":"pack","mode":"count","raw":false,"units":[{"id":"u1","name":"plastic"}],"start":{"u1":2},"startDate":"2026-11-20","active":true}'),
+  ('i17','{"id":"i17","name":"Tauhu frozen","en":"Frozen tauhu","cat":"frozen","mode":"count","raw":false,"note":"daging","units":[{"id":"u1","name":"pack"}],"start":{"u1":2},"startDate":"2026-11-20","active":true}'),
+  ('i18','{"id":"i18","name":"Kuah tauhu","en":"Tauhu sauce","cat":"frozen","mode":"count","raw":false,"units":[{"id":"u1","name":"pack"}],"start":{"u1":10},"startDate":"2026-11-20","active":true}'),
+  ('i19','{"id":"i19","name":"Kuah popia","en":"Popia sauce","cat":"frozen","mode":"count","raw":false,"units":[{"id":"u1","name":"pack"}],"start":{"u1":14},"startDate":"2026-11-20","active":true}')
+on conflict (id) do nothing;
+
 select 'Aunty Tauhu database is ready' as result,
        (select string_agg(name || ' (' || role || ')', ', ' order by created_at) from public.profiles) as accounts;
