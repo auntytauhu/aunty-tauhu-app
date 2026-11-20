@@ -646,7 +646,7 @@ const Auth={msg:"",mode:"login",staff:[],ownerExists:true,
     if(error||!prof){this.msg=error?("Couldn't load your account: "+error.message):"Account not found. Ask the owner to check the setup.";await Sync.sb.auth.signOut();ui.screen="login";render();return;}
     API.me={id:user.id,name:prof.name||"",role:prof.role};
     if(prof.role==="pending"){this.msg="This account has no access. Ask the owner to give you access.";await Sync.sb.auth.signOut();API.me=null;ui.screen="login";render();return;}
-    ui.screen="app";ui.tab=API.isOwner()?"today":"orders";ui.date=today();
+    ui.screen="app";ui.tab=API.isOwner()?"today":"orders";ui.date=today();ui.orderFilter=API.isOwner()?"day":"upcoming";
     const had=Sync.restore();if(had)render();else{DB=emptyDB();Sync.takeSnap();Sync.lastSync=0;ui.screen="loading";render();} // fresh phone: nothing local to send
     await Sync.refresh();ui.screen="app";render();
     if(API.isOwner())this.loadStaff();},
@@ -687,7 +687,7 @@ setInterval(()=>{if(document.visibilityState==="visible"&&ui.screen==="app"&&!ui
 /* ---------- UI ---------- */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const ui={tab:"today",date:today(),period:"week",orderFilter:"upcoming",sheet:null,pdf:{daily:true,weekly:true,booths:true,vendors:true,orders:true,packs:true},claimUnclaimed:true,orderCh:"bwa"};
+const ui={tab:"today",date:today(),period:"week",orderFilter:"day",sheet:null,pdf:{daily:true,weekly:true,booths:true,vendors:true,orders:true,packs:true},claimUnclaimed:true,orderCh:"bwa"};
 const ICONS={stock:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',vendors:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',today:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   settings:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',more:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'};
 const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
@@ -780,22 +780,23 @@ function vendorSheet(s,err){const v=API.vendor(s.id),e=API.vEntry(ui.date,v.id),
   return h;}
 
 /* ----- ORDERS ----- */
-function ordersView(){const money=API.seesMoney(),t=today(),ch=ui.orderCh,C=CH[ch];let os=DB.orders.filter(o=>o.channel===ch);const f=ui.orderFilter;
+function ordersView(){const money=API.seesMoney(),t=today(),d=ui.date,ch=ui.orderCh,C=CH[ch];let os=DB.orders.filter(o=>o.channel===ch);const f=ui.orderFilter==="today"?"day":ui.orderFilter;
+  if(f==="day")os=os.filter(o=>o.date===d);
   if(f==="upcoming")os=os.filter(o=>o.date>=t&&o.status!=="collected"&&o.status!=="cancelled");
-  if(f==="today")os=os.filter(o=>o.date===t);
   if(f==="unpaid")os=os.filter(o=>!o.paid&&o.status!=="cancelled");
   if(f==="done")os=os.filter(o=>o.status==="collected"||o.status==="cancelled");
   os.sort((a,b)=>f==="done"||f==="all"?b.date.localeCompare(a.date):a.date.localeCompare(b.date));
-  const td=DB.orders.filter(o=>o.channel===ch&&o.date===t&&o.status!=="cancelled"),tot=td.reduce((a,o)=>a+orderTotal(o),0),pk=td.reduce((a,o)=>a+o.items.reduce((b,i)=>b+i.qty,0),0);
-  return`<div class="seg">${Object.entries(CH).map(([k,c])=>`<button class="${ch===k?"on":""}" data-a="orderCh" data-id="${k}">${c.long}</button>`).join("")}</div>
+  const td=DB.orders.filter(o=>o.channel===ch&&o.date===d&&o.status!=="cancelled"),tot=td.reduce((a,o)=>a+orderTotal(o),0),pk=td.reduce((a,o)=>a+o.items.reduce((b,i)=>b+i.qty,0),0);
+  return`<div class="datebar"><button data-a="day" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===t?"Today":`<span data-a="goToday" style="text-decoration:underline">Back to today</span>`}</small></div><button data-a="day" data-id="1">›</button></div>
+  <div class="seg">${Object.entries(CH).map(([k,c])=>`<button class="${ch===k?"on":""}" data-a="orderCh" data-id="${k}">${c.long}</button>`).join("")}</div>
   <div class="row between"><h2 style="margin:0">${C.long}</h2><button class="btn sm" data-a="newOrder">+ New order</button></div>
   <p class="muted">${ch==="bwa"?"Customers who order through BWA. Full price, no BWA cut. Claim these from BWA.":"Customers who order directly from Aunty Tauhu. For your own record."}</p>
-  <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders today</div><div class="v">${td.length}</div><div class="muted">${td.filter(o=>o.status==="collected").length} collected · ${td.filter(o=>o.status!=="collected").length} to prepare</div></div>
-   <div class="stat"><div class="l">${money?"Sales today":"Packs today"}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs</div>`:""}</div></div>
-  <div class="chips">${[["upcoming","Upcoming"],["today","Today"],["unpaid",C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
+  <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders ${d===t?"today":fmtDs(d)}</div><div class="v">${td.length}</div><div class="muted">${td.filter(o=>o.status==="collected").length} collected · ${td.filter(o=>o.status!=="collected").length} to prepare</div></div>
+   <div class="stat"><div class="l">${money?"Sales":"Packs"} ${d===t?"today":fmtDs(d)}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs</div>`:""}</div></div>
+  <div class="chips">${[["day",d===t?"Today":fmtDs(d)],["upcoming","Upcoming"],["unpaid",C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
   <div class="card list">${os.length?os.map(o=>`<button class="item" data-a="order" data-id="${o.id}"><div class="grow"><b>${esc(o.customer)}</b> <span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span>${money&&!o.paid&&o.status!=="cancelled"?` <span class="badge b-red">${C.unpaid}</span>`:""}
      <div class="muted">${o.no} · ${dayName(o.date)} ${fmtDs(o.date)}${o.date===t?" (today)":""}${o.delivery?" · Delivery":""}${o.invoiceNo?" · "+o.invoiceNo:""}</div><div class="muted">${esc(o.items.map(i=>i.qty+"× "+i.name).join(", "))}</div></div>
-     ${money?`<b>${RM(orderTotal(o))}</b>`:`<span class="muted">›</span>`}</button>`).join(""):`<div class="empty">No orders here.</div>`}</div>`;}
+     ${money?`<b>${RM(orderTotal(o))}</b>`:`<span class="muted">›</span>`}</button>`).join(""):`<div class="empty">${f==="day"?`No orders on ${fmtD(d)}. Tap <b>+ New order</b> to add one for this date.`:"No orders here."}</div>`}</div>`;}
 
 /* ----- REPORTS ----- */
 function reportView(){
@@ -985,7 +986,7 @@ function orderForm(s,err){const f=s.form,money=API.seesMoney();
   <div class="hint">${f.channel==="bwa"?"BWA customer: you will claim this from BWA.":"Direct customer: for your own record."}</div></div>
   <div class="field"><label>Customer name</label><input id="oC" data-f="customer" value="${esc(f.customer)}" placeholder="e.g. Puan Rohana"></div>
   <div class="grid2"><div class="field"><label>Phone (optional)</label><input id="oPh" data-f="phone" inputmode="tel" value="${esc(f.phone)}"></div>
-  <div class="field"><label>Collection date</label><input id="oD" data-f="date" type="date" value="${esc(f.date)}"></div></div>
+  <div class="field"><label>Date (collection / sale)</label><input id="oD" data-f="date" type="date" value="${esc(f.date)}"></div></div>
   ${MENU_CATS.map(cat=>{const items=DB.menu.filter(m=>m.cat===cat&&(m.active||f.qty[m.id]));if(!items.length)return"";
     return`<h3>${cat}</h3>${items.map(m=>stepper("q_"+m.id,esc(m.name),money?RM(m.price):"",f.qty[m.id]||0,f.qty[m.id]?"has":"")).join("")}`;}).join("")}
   <h3>Custom item</h3><p class="muted" style="margin-top:-4px">For items not on the menu, e.g. mini packs. Set your own price per pack.</p>
@@ -1066,7 +1067,7 @@ const val=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
 const open=s=>{ui.sheet=s;render();};
 function failed(r){if(r.ok)return false;if(ui.sheet){ui.sheet.error=r.error;render();const b=$(".err-box");if(b)b.scrollIntoView({block:"center"});}else toast(r.error,true);return true;}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Copied");}catch(e){toast("Couldn't copy. Press and hold the text, then choose Copy.",true);}}
-function newForm(o){const f={channel:o?o.channel:ui.orderCh,customer:"",phone:"",date:ui.date>=today()?ui.date:today(),notes:"",qty:{},custom:[],del:{on:false,fee:"",address:""}};
+function newForm(o){const f={channel:o?o.channel:ui.orderCh,customer:"",phone:"",date:ui.date,notes:"",qty:{},custom:[],del:{on:false,fee:"",address:""}};
   if(o&&o.delivery)f.del={on:true,fee:s2d(o.delivery.fee),address:o.delivery.address||""};
   if(o){Object.assign(f,{customer:o.customer,phone:o.phone,date:o.date,notes:o.notes});o.items.forEach(i=>{if(i.custom)f.custom.push({name:i.name,qty:i.qty,price:i.price});else if(i.menuId)f.qty[i.menuId]=(f.qty[i.menuId]||0)+i.qty;else{const m=DB.menu.find(x=>x.name===i.name);m?f.qty[m.id]=i.qty:f.custom.push({name:i.name,qty:i.qty,price:i.price});}});}
   return f;}
@@ -1085,8 +1086,8 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"refresh":Sync.refresh(true);return;
     case"setRole":Auth.setRole(id,el.dataset.role);return;
     case"tab":ui.tab=id;ui.sheet=null;scrollTo(0,0);if(id==="settings"&&API.isOwner())Auth.loadStaff();break;
-    case"day":ui.date=addDays(ui.date,+id);break;
-    case"goToday":ui.date=today();break;
+    case"day":ui.date=addDays(ui.date,+id);if(ui.tab==="orders")ui.orderFilter="day";break;
+    case"goToday":ui.date=today();if(ui.tab==="orders")ui.orderFilter="day";break;
     case"sendAll":{const r=API.sendAll(ui.date);if(failed(r))return;toast(`Stock sent to ${r.data} booth${r.data>1?"s":""}`);break;}
     case"booth":return open({type:"booth",id});
     case"minus":case"plus":{const i=document.getElementById(id);syncStep(id,Math.max(0,(parseInt(i.value,10)||0)+(a==="plus"?1:-1)));return;}
