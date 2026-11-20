@@ -69,7 +69,10 @@ nav button.on{color:var(--navy);font-weight:700}nav svg{width:24px;height:24px}
 .step.has{border-color:var(--sand);background:#fffaf0}
 .sheet-bg{position:fixed;inset:0;background:rgba(14,23,38,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--b50);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:8px 16px calc(18px + var(--sb))}
-.grab{width:40px;height:5px;border-radius:3px;background:var(--b300);margin:4px auto 10px}.sheet h2{margin-top:0}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--b300);margin:4px auto 10px}
+.sheet-top{position:sticky;top:-8px;z-index:5;height:50px;margin:-8px -16px 4px;padding:0 12px;background:var(--b50);display:flex;align-items:center;justify-content:flex-end;border-radius:18px 18px 0 0}
+.sheet-top .grab{position:absolute;top:8px;left:50%;transform:translateX(-50%);margin:0}
+.sheet-x{width:38px;height:38px;border-radius:50%;border:1px solid var(--b300);background:#fff;font-size:17px;font-weight:700;color:#3b2a1f;box-shadow:0 2px 8px rgba(0,0,0,.1)}.sheet h2{margin-top:0}
 .calc .r{display:flex;justify-content:space-between;padding:3px 0;gap:10px}.calc .t{font-weight:800;font-size:18px;border-top:1px dashed var(--b300);margin-top:6px;padding-top:8px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(72px + var(--st));background:#0e1726;color:#fff;padding:10px 16px;border-radius:12px;z-index:60;font-size:14px;max-width:90%;text-align:center}
 .toast.err{background:var(--red)}
@@ -1018,7 +1021,7 @@ function sheetView(){const s=ui.sheet,err=s.error?`<div class="err-box">${esc(s.
   else if(s.type==="csvCopy"){h=`<h2>CSV</h2><p class="muted">Copy and paste into Google Sheets (cell A1).</p><textarea class="copy" readonly>${esc(csvText())}</textarea><button class="btn block" style="margin-top:10px" data-a="copyCsv">Copy CSV</button>`;}
   else if(s.type==="fresh"){h=`<h2>Delete all records?</h2><p>This deletes <b>all booth records, vendor records and customer orders for everyone</b>. It cannot be undone.</p><p>Your <b>booths, usual stock, vendors, order menu, prices and business details stay</b>.</p><div class="grid2"><button class="btn sec" data-a="closeSheet">Cancel</button><button class="btn brown" data-a="doFresh">Clear records</button></div>`;}
   else if(s.type==="reset"){h=`<h2>Reset sample data?</h2><p>All records, orders and settings you changed will be deleted and the sample data restored.</p><div class="grid2"><button class="btn sec" data-a="closeSheet">Cancel</button><button class="btn danger" data-a="doReset">Reset</button></div>`;}
-  return`<div class="sheet-bg" data-a="bg"><div class="sheet"><div class="grab"></div>${h}</div></div>`;}
+  return`<div class="sheet-bg" data-a="bg"><div class="sheet"><div class="sheet-top"><div class="grab"></div><button class="sheet-x" data-a="closeSheet" aria-label="Close">✕</button></div>${h}</div></div>`;}
 
 /* ----- EVENTS ----- */
 const val=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
