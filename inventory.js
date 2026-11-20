@@ -417,6 +417,32 @@ details summary{cursor:pointer;font-weight:600;color:var(--navy2);padding:6px 0}
 .uline{display:flex;justify-content:space-between;gap:8px;padding:2px 0}
 .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .unitrow{border:1px solid var(--b200);border-radius:12px;padding:10px;margin-bottom:8px;background:#fff}
+.invnav{position:sticky;top:var(--hh,64px);z-index:15;background:var(--b50);margin:-14px -14px 12px!important;padding:10px 14px 9px!important;border-bottom:1px solid var(--b200)}
+.invnav .chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px 7px 10px}.invnav svg{width:17px;height:17px;flex:none}
+.irow{align-items:center!important;gap:10px!important}
+.irow .nm{font-weight:700;font-size:16px;line-height:1.25;color:#0e1726}
+.irow .muted{font-size:12.5px;margin-top:1px}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.qty{text-align:right;flex:none;max-width:48%}
+.ql{line-height:1.1}.ql+.ql{margin-top:7px}.ql b{font-size:20px;font-weight:800;color:var(--navy)}.ql small{display:block;font-size:11.5px;color:#6b6f78;margin-top:1px}
+.ql.q-low b{color:#a14d00}.ql.q-out b{color:var(--red)}.ql.q-ok b{color:var(--green)}
+.qsum{font-size:11px;color:#6b6f78;margin-top:5px}
+.stpill{display:inline-block;border-radius:999px;padding:5px 10px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.st-available{background:var(--green-bg);color:var(--green)}.st-low{background:#ffe8d1;color:#a14d00}.st-out{background:var(--red-bg);color:var(--red)}.st-none{background:var(--navy-100);color:var(--navy2)}
+.chev{color:#b5aa92;font-size:22px;flex:none;margin-left:-2px}
+.irow.todo .nm{color:#3b3f48}
+.lhead{display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 8px}.lhead h3{margin:0}.lhead h3 span{text-transform:none;font-weight:400;letter-spacing:0}.lhead>span{font-size:12px;color:#6b6f78;font-weight:600}
+.pbar{height:8px;background:var(--b200);border-radius:99px;overflow:hidden;margin-top:10px}.pbar i{display:block;height:100%;background:var(--green);border-radius:99px}
+.big{font-size:28px;font-weight:800;color:var(--navy);line-height:1.1}.big small{font-size:15px;color:#6b6f78;font-weight:600}.big.g{color:var(--green)}.big.r{color:var(--red)}
+.todaycard{width:100%;text-align:left;border:2px solid var(--sand)!important;display:block}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:#fff;border:1px solid var(--b200);border-radius:14px;padding:14px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--navy);min-height:84px;text-align:center}
+.tile svg{width:28px;height:28px;color:var(--brown)}.tn{background:#c25e00;color:#fff;border-radius:99px;padding:0 6px;font-size:11px}
+.mv{padding:11px 0;border-bottom:1px solid var(--b200)}.mv:last-child{border-bottom:0}
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:7px}
+.strip div{background:var(--b100);border-radius:9px;padding:6px 2px;text-align:center}.strip small{display:block;font-size:9.5px;color:#6b6f78;text-transform:uppercase;letter-spacing:.4px}.strip b{font-size:15px}
+.strip .cl{background:var(--navy);color:#fff}.strip .cl small{color:#c8d0e0}
+.eq{font-size:12px;color:#6b6f78;margin-top:4px}.eqv{font-size:14px;color:#0e1726}
 `;document.head.appendChild(st);})();
 
 const invLevelBadge=l=>l==="out"?`<span class="badge b-red">OUT OF STOCK</span>`:l==="low"?`<span class="badge b-orange">LOW STOCK</span>`:"";
@@ -430,33 +456,48 @@ function invChangeBadge(c,unitName){if(!c)return"";const t=`${c.d>0?"+":c.d<0?"�
 const invCanSeeMoney=()=>API.isOwner();
 function invPages(){return API.isOwner()?[["dash","Dashboard"],["items","Inventory"],["daily","Daily update"],["usage","Usage"],["buys","Purchases"],["prices","Price history"],["reports","Reports"],["restock","Restock list"],["settings","Settings"]]
   :[["daily","Daily update"],["usage","Usage"],["buys","Stock received"],["restock","Restock list"],["dash","Dashboard"],["items","Inventory"]];}
+/* ---------- shared pieces for a clear phone layout ---------- */
+const INV_ICON={dash:'<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',items:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',
+  daily:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',usage:'<path d="M12 3c3 4 6 7 6 11a6 6 0 0 1-12 0c0-4 3-7 6-11z"/>',
+  buys:'<path d="M5 8h14l-1.5 12h-11z"/><path d="M9 8a3 3 0 0 1 6 0"/>',prices:'<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',restock:'<path d="M4 6h16M4 12h10M4 18h7"/><path d="M15 17l2.5 2.5L22 15"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
+const invIco=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${INV_ICON[k]||""}</svg>`;
+const invStPill=st=>`<span class="stpill st-${st}">${st==="none"?"Not updated":INV_ST[st]||st}</span>`;
+/* left side of a row: name, small line, status tags */
+const invHead=(it,tags,sub)=>`<div class="grow"><div class="nm">${esc(it.name)}</div>${it.en||sub?`<div class="muted">${[it.en?esc(it.en):"",sub||""].filter(Boolean).join(" · ")}</div>`:""}${tags?`<div class="tags">${tags}</div>`:""}</div>`;
+/* right side: current stock, big */
+function invQtyBox(it){const S=Inv.state(it);if(it.mode==="status")return`<div class="qty">${invStPill(S.st)}</div>`;
+  return`<div class="qty">${S.lines.map(l=>`<div class="ql ${l.out?"q-out":l.low?"q-low":""}"><b>${fq(l.qty)}</b><small>${esc(plur(l.u.name,l.qty))}</small></div>`).join("")}${S.combined?`<div class="qsum">= ${qu(S.total,it.units[0].name)}</div>`:""}</div>`;}
+const invChev=`<span class="chev">›</span>`;
+const invEq=(open,inn,us,ws,exp)=>`${fq(open)} + ${fq(inn)} − ${fq(us)} − ${fq(ws)} = <b>${fq(exp)}</b>`;
 function invView(){const P=invPages();if(!ui.inv||!P.some(p=>p[0]===ui.inv))ui.inv=P[0][0];
   const body={dash:invDash,items:invItemsView,daily:invDaily,usage:invUsage,buys:invBuysView,prices:invPricesView,reports:invReports,restock:invRestockView,settings:invSettings}[ui.inv]();
-  return`<div class="chips invnav" id="invnav">${P.map(([k,l])=>`<button class="chip ${ui.inv===k?"on":""}" data-a="invPage" data-id="${k}">${l}</button>`).join("")}</div>${body}`;}
+  setTimeout(()=>{const h=document.querySelector("header");if(h)document.documentElement.style.setProperty("--hh",h.offsetHeight+"px");},0);
+  return`<div class="chips invnav" id="invnav">${P.map(([k,l])=>`<button class="chip ${ui.inv===k?"on":""}" data-a="invPage" data-id="${k}">${invIco(k)}${l}</button>`).join("")}</div>${body}`;}
 
 /* ----- DASHBOARD ----- */
 function invDash(){const owner=API.isOwner(),its=Inv.items(),S=its.map(it=>({it,S:Inv.state(it)})),t=today();
   const low=S.filter(x=>x.S.level==="low"),out=S.filter(x=>x.S.level==="out"),need=Inv.restock().filter(l=>!l.done),noMin=S.filter(x=>x.it.mode!=="status"&&!x.S.minSet);
-  const last=Inv.lastUpdate(),done=its.filter(it=>Inv.rec(t,it.id)).length,sp=owner?Inv.spend(t.slice(0,8)+"01",t):null;
-  return`<h2>Inventory dashboard</h2>
+  const last=Inv.lastUpdate(),done=its.filter(it=>Inv.rec(t,it.id)).length,sp=owner?Inv.spend(t.slice(0,8)+"01",t):null,pct=its.length?Math.round(done/its.length*100):0;
+  const tiles=invPages().filter(p=>p[0]!=="dash"&&p[0]!=="restock").map(([k,l])=>`<button class="tile" data-a="invPage" data-id="${k}">${invIco(k)}<span>${l}</span></button>`).join("");
+  return`<h2>Stock dashboard</h2>
+  <button class="card todaycard" data-a="invPage" data-id="daily"><div class="row between"><div><b style="font-size:16px">Today's stock update</b><div class="muted">${fmtD(t)}</div></div><div class="big ${done===its.length?"g":""}">${done}<small>/${its.length}</small></div></div>
+   <div class="pbar"><i style="width:${pct}%"></i></div><div class="row between" style="margin-top:8px"><span class="muted">${done===its.length?"All items done":`${its.length-done} item${its.length-done>1?"s":""} left`}</span><span class="badge ${done===its.length?"b-green":"b-amber"}">${done===its.length?"Done ✓":"Update now ›"}</span></div></button>
   <div class="grid2">
-   <div class="stat"><div class="l">Total inventory items</div><div class="v">${its.length}</div></div>
-   <button class="stat ${low.length?"orange":""}" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Items running low</div><div class="v">${low.length}</div></button>
-   <button class="stat ${out.length?"red":""}" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Items out of stock</div><div class="v">${out.length}</div></button>
-   <button class="stat" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Items that need purchasing</div><div class="v">${need.length}</div></button>
-   <div class="stat ${owner?"":"hl"}" ${owner?"":'style="grid-column:1/-1"'}><div class="l">Last stock update</div><div class="v" style="font-size:15px">${last?`${fmtDs(last.date)} · ${esc(last.by)}`:"None yet"}</div>${last?`<div class="muted" ${owner?"":'style="color:#c8d0e0"'}>${new Date(last.at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>`:""}</div>
-   ${owner?`<button class="stat hl" style="text-align:left" data-a="invPage" data-id="reports" data-view="spend"><div class="l">Purchase spending this month</div><div class="v">${RM(sp.total)}</div>${sp.unpriced?`<div class="muted" style="color:#ffd48a">${sp.unpriced} without price</div>`:""}</button>`:""}
+   <button class="stat ${out.length?"red":""}" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Out of stock</div><div class="v">${out.length}</div></button>
+   <button class="stat ${low.length?"orange":""}" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Running low</div><div class="v">${low.length}</div></button>
+   <button class="stat" style="text-align:left" data-a="invPage" data-id="restock"><div class="l">Need purchasing</div><div class="v">${need.length}</div></button>
+   <div class="stat"><div class="l">Total items</div><div class="v">${its.length}</div></div>
+   <div class="stat" ${owner?"":'style="grid-column:1/-1"'}><div class="l">Last stock update</div><div class="v" style="font-size:15px">${last?`${fmtDs(last.date)} · ${esc(last.by)}`:"None yet"}</div>${last?`<div class="muted">${new Date(last.at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>`:""}</div>
+   ${owner?`<button class="stat hl" style="text-align:left" data-a="invPage" data-id="reports" data-view="spend"><div class="l">Spent this month</div><div class="v">${RM(sp.total)}</div>${sp.unpriced?`<div class="muted" style="color:#ffd48a">${sp.unpriced} without price</div>`:""}</button>`:""}
   </div>
-  <button class="card row" style="width:100%;text-align:left;margin-top:12px;border:2px solid ${done===its.length?"var(--green)":"var(--sand)"}" data-a="invPage" data-id="daily"><div class="grow"><b>Today's stock update</b><div class="muted">${done} of ${its.length} items updated · ${fmtD(t)}</div></div><span class="badge ${done===its.length?"b-green":"b-amber"}">${done===its.length?"Done":"Update now"}</span></button>
+  ${out.length||low.length?`<h3>Alerts (${out.length+low.length})</h3><div class="card list">${[...out,...low].map(({it,S})=>`<button class="item irow ${invRowCls(S.level)}" data-a="invItem" data-id="${it.id}">${invHead(it,invLevelBadge(S.level))}${invQtyBox(it)}${invChev}</button>`).join("")}</div>`:""}
   <h3>Categories</h3><div class="grid2">${INV_CATS.map(c=>{const l=S.filter(x=>x.it.cat===c.id),lo=l.filter(x=>x.S.level==="low").length,ou=l.filter(x=>x.S.level==="out").length;
     return`<button class="catcard" data-a="invCat" data-id="${c.id}"><b>${c.en}</b><small>${c.ms}</small><div class="n">${l.length} items</div><div class="al">${ou?`<span class="pill" style="background:#fbe9e7;color:#b3261e">${ou} out</span> `:""}${lo?`<span class="pill" style="background:#ffe8d1;color:#a14d00">${lo} low</span>`:""}${!ou&&!lo?"All OK":""}</div></button>`;}).join("")}</div>
-  ${out.length||low.length?`<h3>Alerts</h3><div class="card list">${[...out,...low].map(({it,S})=>`<button class="item ${invRowCls(S.level)}" data-a="invItem" data-id="${it.id}"><div class="grow"><b>${esc(it.name)}</b> ${invLevelBadge(S.level)}<div class="muted">${esc(Inv.stockText(it))}</div></div><span class="muted">›</span></button>`).join("")}</div>`:""}
-  ${owner&&noMin.length?`<div class="note"><b>${noMin.length} item${noMin.length>1?"s have":" has"} no minimum stock level</b>, so ${noMin.length>1?"they":"it"} can't warn you before running low (out of stock still shows).<br><button class="btn sm brown" style="margin-top:8px" data-a="invLevels">Set minimum levels</button></div>`:""}
-  <h3>Quick actions</h3><div class="grid2">
-   <button class="btn" data-a="invPage" data-id="daily">Daily stock update</button>
-   <button class="btn brown" data-a="invBuy">${owner?"Record purchase":"Record stock received"}</button>
-   <button class="btn sec" data-a="invPage" data-id="usage">Record usage</button>
-   <button class="btn sec" data-a="invPage" data-id="restock">Restock list</button></div>`;}
+  ${owner&&noMin.length?`<div class="note" style="margin-top:12px"><b>${noMin.length} item${noMin.length>1?"s have":" has"} no minimum level</b>, so ${noMin.length>1?"they":"it"} can't warn you before running low (out of stock still shows).<br><button class="btn sm brown" style="margin-top:8px" data-a="invLevels">Set minimum levels</button></div>`:""}
+  <h3>Stock menu</h3><div class="tiles">${tiles}<button class="tile" data-a="invPage" data-id="restock">${invIco("restock")}<span>Restock list${need.length?` <b class="tn">${need.length}</b>`:""}</span></button></div>
+  <button class="btn brown block" style="margin-top:12px" data-a="invBuy">${owner?"+ Record purchase":"+ Record stock received"}</button>`;}
 
 /* ----- INVENTORY LIST ----- */
 function invItemsView(){const owner=API.isOwner(),c=ui.invCat||"all",its=Inv.items().filter(it=>c==="all"||it.cat===c);
@@ -465,12 +506,12 @@ function invItemsView(){const owner=API.isOwner(),c=ui.invCat||"all",its=Inv.ite
   <div class="chips" style="margin-top:10px"><button class="chip ${c==="all"?"on":""}" data-a="invCat" data-id="all">All (${Inv.items().length})</button>${INV_CATS.map(k=>`<button class="chip ${c===k.id?"on":""}" data-a="invCat" data-id="${k.id}">${k.en} (${Inv.items().filter(i=>i.cat===k.id).length})</button>`).join("")}</div>
   <input class="search" type="search" placeholder="Search item" data-filter="invList" autocomplete="off">
   <div id="invList">${INV_CATS.filter(k=>c==="all"||c===k.id).map(k=>{const l=its.filter(i=>i.cat===k.id);if(!l.length)return"";
-    return`<h3>${k.en} <span style="text-transform:none;font-weight:400">· ${k.ms}</span></h3><div class="card list">${l.map(it=>{const S=Inv.state(it);
-      return`<button class="item ${invRowCls(S.level)}" data-a="invItem" data-id="${it.id}" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}"><div class="grow"><b>${esc(it.name)}</b> ${invLevelBadge(S.level)}${it.en?`<span class="muted"> · ${esc(it.en)}</span>`:""}
-        <div class="muted">${esc(Inv.stockText(it))}${it.note?` · ${esc(it.note)}`:""}</div>${it.mode!=="status"&&!S.minSet?`<div class="muted" style="font-size:11px">No minimum set</div>`:""}</div><span class="muted">›</span></button>`;}).join("")}</div>`;}).join("")}
+    return`<div class="lhead"><h3>${k.en} <span>· ${k.ms}</span></h3><span>Stock now</span></div><div class="card list">${l.map(it=>{const S=Inv.state(it);
+      const tags=invLevelBadge(S.level);
+      return`<button class="item irow ${invRowCls(S.level)}" data-a="invItem" data-id="${it.id}" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}">${invHead(it,tags,it.note?esc(it.note):"")}${invQtyBox(it)}${invChev}</button>`;}).join("")}</div>`;}).join("")}
    <div class="empty" data-none style="display:none">No item matches.</div></div>
   ${!its.length?`<div class="empty">No items in this category.</div>`:""}
-  ${arch.length?`<h3>Archived (${arch.length})</h3><div class="card list">${arch.map(it=>`<button class="item" data-a="invItemEdit" data-id="${it.id}"><div class="grow"><b>${esc(it.name)}</b><div class="muted">Archived · history kept</div></div><span class="muted">›</span></button>`).join("")}</div>`:""}`;}
+  ${arch.length?`<h3>Archived (${arch.length})</h3><div class="card list">${arch.map(it=>`<button class="item irow" data-a="invItemEdit" data-id="${it.id}">${invHead(it,"","Archived · history kept")}${invChev}</button>`).join("")}</div>`:""}`;}
 function invItemSheet(s){const it=Inv.item(s.id),owner=API.isOwner();if(!it)return`<div class="empty">Item not found.</div>`;const S=Inv.state(it),t=today();
   const recent=Inv.recs(it.id).slice(-10).reverse();
   return`<div class="row between"><h2 style="margin:0">${esc(it.name)}</h2>${owner?`<button class="btn sm ghost" data-a="invItemEdit" data-id="${it.id}">Edit</button>`:""}</div>
@@ -488,26 +529,28 @@ function invItemSheet(s){const it=Inv.item(s.id),owner=API.isOwner();if(!it)retu
   ${owner?`<button class="btn ghost block" data-a="invHistItem" data-id="${it.id}">Stock history chart</button>`:""}`;}
 
 /* ----- DAILY UPDATE ----- */
-function invDaily(){const d=ui.invDate||(ui.invDate=today()),edit=Inv.canEdit(d),c=ui.invDCat||"all",its=Inv.items().filter(it=>c==="all"||it.cat===c),all=Inv.items();
-  const done=all.filter(it=>Inv.rec(d,it.id)).length;let disc=0;
-  const row=it=>{const r=Inv.rec(d,it.id);let st=`<span class="badge b-navy">Not updated</span>`,sub="";
-    if(r){if(it.mode==="status"){st=`<span class="badge ${r.st==="out"?"b-red":r.st==="low"?"b-orange":"b-green"}">${INV_ST[r.st]||"Saved"}</span>`;}
-      else{const es=it.units.map(u=>({u,e:Inv.entry(it,u.id,d)})).filter(x=>x.e&&r.lines[x.u.id]);const nc=es.filter(x=>x.e.close==null),bad=es.filter(x=>x.e.disc);
-        if(bad.length){disc++;st=`<span class="badge ${bad.some(x=>x.e.disc<0)?"b-red":"b-orange"}">Discrepancy</span>`;sub=bad.map(x=>`${x.u.name} ${signed(x.e.disc)}`).join(", ");}
-        else if(nc.length===es.length)st=`<span class="badge b-amber">Not counted</span>`;
-        else if(nc.length)st=`<span class="badge b-amber">Partly counted</span>`;else st=`<span class="badge b-green">✓ Reconciled</span>`;
-        if(!sub)sub=es.map(x=>`${x.u.name}: ${x.e.close==null?"exp. "+fq(x.e.exp):fq(x.e.close)}`).join(" · ");}
-      sub+=` · ${esc(r.by)} ${fmtT(r.at)}${r.v>1?` · corrected ${r.v-1}×`:""}`;}
-    else sub=`Opening: ${it.mode==="status"?INV_ST[Inv.statusAt(it,addDays(d,-1))]:it.units.map(u=>qu(Inv.openFor(it,u.id,d),u.name)).join(" + ")}`;
-    return`<button class="item" data-a="invCount" data-id="${it.id}" data-date="${d}" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}"><div class="grow"><b>${esc(it.name)}</b> ${st}<div class="muted">${sub}</div></div><span class="muted">›</span></button>`;};
-  const list=INV_CATS.filter(k=>c==="all"||c===k.id).map(k=>{const l=its.filter(i=>i.cat===k.id);return l.length?`<h3>${k.en} · ${k.ms}</h3><div class="card list">${l.map(row).join("")}</div>`:"";}).join("");
+function invDayStatus(it,d){const r=Inv.rec(d,it.id);
+  if(!r)return{done:false,tag:"",right:`<div class="qty">${invStPill("none")}</div>`,sub:`Opening ${it.mode==="status"?INV_ST[Inv.statusAt(it,addDays(d,-1))]:it.units.map(u=>qu(Inv.openFor(it,u.id,d),u.name)).join(" + ")}`};
+  const by=`${esc(r.by)} ${fmtT(r.at)}${r.v>1?` · corrected ${r.v-1}×`:""}`;
+  if(it.mode==="status")return{done:true,tag:"",right:`<div class="qty">${invStPill(r.st||"available")}</div>`,sub:by};
+  const es=it.units.map(u=>({u,e:Inv.entry(it,u.id,d)})).filter(x=>x.e&&r.lines[x.u.id]),nc=es.filter(x=>x.e.close==null),bad=es.filter(x=>x.e.disc);
+  const tag=bad.length?`<span class="badge ${bad.some(x=>x.e.disc<0)?"b-red":"b-orange"}">Discrepancy ${bad.map(x=>signed(x.e.disc)).join(", ")}</span>`
+    :nc.length===es.length?`<span class="badge b-amber">Not counted</span>`:nc.length?`<span class="badge b-amber">Partly counted</span>`:`<span class="badge b-green">✓ Reconciled</span>`;
+  const right=`<div class="qty">${es.map(x=>`<div class="ql ${x.e.disc<0?"q-out":x.e.disc>0?"q-low":x.e.close!=null?"q-ok":""}"><b>${fq(x.e.close==null?x.e.exp:x.e.close)}</b><small>${esc(plur(x.u.name,x.e.end))}${x.e.close==null?" (exp.)":""}</small></div>`).join("")}</div>`;
+  return{done:true,disc:bad.length>0,tag,right,sub:by};}
+function invDaily(){const d=ui.invDate||(ui.invDate=today()),edit=Inv.canEdit(d),c=ui.invDCat||"all",all=Inv.items(),its=all.filter(it=>c==="all"||it.cat===c);
+  const st=new Map(all.map(it=>[it.id,invDayStatus(it,d)])),done=all.filter(it=>st.get(it.id).done).length,disc=all.filter(it=>st.get(it.id).disc).length,pct=all.length?Math.round(done/all.length*100):0;
+  const row=it=>{const x=st.get(it.id);return`<button class="item irow ${x.done?"":"todo"}" data-a="invCount" data-id="${it.id}" data-date="${d}" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}">${invHead(it,x.tag,x.sub)}${x.right}${invChev}</button>`;};
+  const list=INV_CATS.filter(k=>c==="all"||c===k.id).map(k=>{const l=its.filter(i=>i.cat===k.id);if(!l.length)return"";const n=l.filter(i=>st.get(i.id).done).length;
+    return`<div class="lhead"><h3>${k.en} <span>· ${k.ms}</span></h3><span>${n}/${l.length} done</span></div><div class="card list">${l.map(row).join("")}</div>`;}).join("");
   return`<div class="datebar"><button data-a="invDay" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===today()?"Today":`<span data-a="invDayToday" style="text-decoration:underline">Go to today</span>`}</small></div><button data-a="invDay" data-id="1" ${d>=today()?"disabled style='opacity:.3'":""}>›</button></div>
-  <div class="grid2"><div class="stat ${done===all.length?"":"orange"}"><div class="l">Items updated</div><div class="v">${done} / ${all.length}</div></div><div class="stat ${disc?"red":""}"><div class="l">Discrepancies</div><div class="v">${disc}</div></div></div>
-  ${edit?"":`<div class="note" style="margin-top:12px">View only. Only the owner can change records from earlier days.</div>`}
-  <div class="chips" style="margin-top:12px"><button class="chip ${c==="all"?"on":""}" data-a="invDCat" data-id="all">All</button>${INV_CATS.map(k=>`<button class="chip ${c===k.id?"on":""}" data-a="invDCat" data-id="${k.id}">${k.en}</button>`).join("")}</div>
+  <div class="card" style="padding:12px 14px"><div class="row between"><div><div class="muted">Items updated</div><div class="big ${done===all.length?"g":""}">${done}<small>/${all.length}</small></div></div>
+   <div class="right"><div class="muted">Discrepancies</div><div class="big ${disc?"r":""}">${disc}</div></div></div><div class="pbar"><i style="width:${pct}%"></i></div></div>
+  ${edit?"":`<div class="note">View only. Only the owner can change records from earlier days.</div>`}
+  <div class="chips"><button class="chip ${c==="all"?"on":""}" data-a="invDCat" data-id="all">All</button>${INV_CATS.map(k=>`<button class="chip ${c===k.id?"on":""}" data-a="invDCat" data-id="${k.id}">${k.en}</button>`).join("")}</div>
   <input class="search" type="search" placeholder="Search item" data-filter="invDList" autocomplete="off">
   <div id="invDList">${list}<div class="empty" data-none style="display:none">No item matches.</div></div>
-  <p class="muted">Tap an item, fill in what was received, used and wasted, then count what is physically left. The app works out the expected closing and shows any difference. Yesterday's closing carries forward automatically.</p>`;}
+  <p class="muted">Tap an item: enter what was used and wasted, then count what is left. Yesterday's closing and today's purchases fill in automatically. Right side = closing stock (exp. = expected, not counted yet).</p>`;}
 function invCountSheet(s,err){const it=Inv.item(s.id);if(!it)return`<div class="empty">Item not found.</div>`;const d=s.date,r=Inv.rec(d,it.id),edit=Inv.canEdit(d)&&it.active!==false;s.f=s.f||{};const dis=edit?"":"disabled";
   let h=`<h2 style="margin-bottom:2px">${esc(it.name)}</h2><p class="muted" style="margin-top:0">${INV_CAT[it.cat].en}${it.en?` · ${esc(it.en)}`:""} · ${dayName(d)}, ${fmtD(d)}</p>${err}
   ${edit?"":`<div class="note">${it.active===false?"This item is archived.":"View only. Only the owner can change records from earlier days."}</div>`}`;
@@ -525,7 +568,7 @@ function invCountSheet(s,err){const it=Inv.item(s.id);if(!it)return`<div class="
       <div class="field"><label>Used for production</label><input id="ic_${u.id}_us" data-k="${u.id}.us" inputmode="decimal" placeholder="0" value="${esc(v("us"))}" ${dis}></div>
       <div class="field"><label>Wastage / damaged</label><input id="ic_${u.id}_ws" data-k="${u.id}.ws" inputmode="decimal" placeholder="0" value="${esc(v("ws"))}" ${dis}></div>
       <div class="field"><label>Physical closing</label><input id="ic_${u.id}_cl" data-k="${u.id}.cl" inputmode="decimal" placeholder="count" value="${esc(v("cl"))}" ${dis} style="border-color:var(--navy)"></div></div>
-     <div class="calc"><div class="r t" style="font-size:16px"><span>Expected closing</span><span class="exp">${fq(exp)}</span></div></div>
+     <div class="calc"><div class="r t" style="font-size:16px"><span>Expected closing</span><span class="exp">${fq(exp)}</span></div><div class="eq">Opening + received − used − wastage<br><span class="eqv">${invEq(open,q3(bought+rx),us,ws,exp)}</span></div></div>
      <div class="discbox">${invDiscBox(exp,cl)}</div></div>`;});
   if(it.mode!=="status"&&edit)h+=`<button class="btn ghost block" style="margin-bottom:12px" data-a="invBuy" data-item="${it.id}" data-date="${d}">+ Record a purchase for ${esc(it.name)}</button>`;
   h+=`<div class="field"><label>Remarks</label><input id="icRm" data-k="rm" value="${esc(fv(s,"rm",r?r.rm||"":""))}" placeholder="optional" ${dis}></div>
@@ -582,11 +625,13 @@ function invBuysView(){const owner=API.isOwner(),t=today(),f=ui.invBP||(owner?"m
   <div class="chips" style="margin-top:10px">${(owner?[["today","Today"],["week","Last 7 days"],["month","This month"],["lastmonth","Last month"],["all","All"]]:[["today","Today"],["week","Last 7 days"]]).map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="invBP" data-id="${k}">${l}</button>`).join("")}</div>
   ${owner?`<div class="grid2"><div class="stat hl"><div class="l">Total spent</div><div class="v">${RM(tot)}</div></div><div class="stat ${miss?"orange":""}"><div class="l">Purchases / without price</div><div class="v">${L.length} / ${miss}</div></div></div>`:""}
   <input class="search" style="margin-top:12px" type="search" placeholder="Search item or supplier" data-filter="invBList" autocomplete="off">
-  <div class="card list" id="invBList">${L.length?L.map(p=>{const it=Inv.item(p.itemId),u=it&&Inv.unit(it,p.unitId),pr=owner?Inv.price(p.id):null,pv=pr?Inv.prevPrice(p):null;
-    return`<button class="item" data-a="invBuy" data-id="${p.id}" data-name="${esc(((it?it.name+" "+(it.en||""):"")+" "+Inv.supName(p)+" "+(p.inv||"")).toLowerCase())}"><div class="grow"><b>${esc(it?it.name:"(deleted item)")}</b> · ${qu(p.qty,u?u.name:"")}
-      <div class="muted">${fmtDs(p.date)}${Inv.supName(p)?` · ${esc(Inv.supName(p))}`:""}${p.inv?` · ref ${esc(p.inv)}`:""} · ${esc(p.cBy)}${p.v>1?" · edited":""}</div>
-      ${owner?(pr?`<div class="muted">${RM(pr.up)} / ${esc(u?u.name:"")} ${pv?invChangeBadge(Inv.change(pr.up,pv.pr.up)):`<span class="badge b-navy">First price</span>`}</div>`:`<span class="badge b-amber">Price missing</span>`):""}</div>
-      ${owner&&pr?`<b>${RM(pr.total)}</b>`:`<span class="muted">›</span>`}</button>`;}).join("")+`<div class="empty" data-none style="display:none">No match.</div>`:`<div class="empty">Nothing recorded in this period.</div>`}</div>
+  <div id="invBList">${L.length?(()=>{const days=[];L.forEach(p=>{let g=days.find(x=>x.d===p.date);if(!g)days.push(g={d:p.date,l:[]});g.l.push(p);});
+    return days.map(g=>{const sum=g.l.reduce((a,p)=>{const pr=Inv.price(p.id);return a+(pr&&pr.total!=null?pr.total:0);},0);
+      return`<div class="lhead"><h3>${dayName(g.d)}, ${fmtD(g.d)}</h3><span>${owner?RM(sum):g.l.length+" received"}</span></div><div class="card list">${g.l.map(p=>{const it=Inv.item(p.itemId),u=it&&Inv.unit(it,p.unitId),pr=owner?Inv.price(p.id):null,pv=pr?Inv.prevPrice(p):null;
+        const tags=owner?(pr?(pv?invChangeBadge(Inv.change(pr.up,pv.pr.up)):`<span class="badge b-navy">First price</span>`):`<span class="badge b-amber">Price missing</span>`):"";
+        const sub=[Inv.supName(p)?esc(Inv.supName(p)):"",p.inv?"ref "+esc(p.inv):"",esc(p.cBy)+(p.v>1?" (edited)":"")].filter(Boolean).join(" · ");
+        return`<button class="item irow" data-a="invBuy" data-id="${p.id}" data-name="${esc(((it?it.name+" "+(it.en||""):"")+" "+Inv.supName(p)+" "+(p.inv||"")).toLowerCase())}"><div class="grow"><div class="nm">${esc(it?it.name:"(deleted item)")}</div><div class="muted">${sub}</div>${tags?`<div class="tags">${tags}</div>`:""}</div>
+          <div class="qty">${owner&&pr?`<div class="ql"><b>${RM(pr.total)}</b><small>${qu(p.qty,u?u.name:"")} × ${RM(pr.up)}</small></div>`:`<div class="ql"><b>${fq(p.qty)}</b><small>${esc(plur(u?u.name:"",p.qty))}</small></div>`}</div>${invChev}</button>`;}).join("")}</div>`;}).join("");})()+`<div class="empty" data-none style="display:none">No match.</div>`:`<div class="card empty">Nothing recorded in this period.</div>`}</div>
   <p class="muted">${owner?"Purchases add to stock automatically on their date. Staff can record stock received without prices; add the price later by tapping the purchase.":"Stock received adds to stock automatically. The owner adds the price."}</p>`;}
 function invBuySheet(s,err){const owner=API.isOwner();s.f=s.f||{};const p=s.id?DB.invBuys.find(x=>x.id===s.id):null,pr=p&&owner?Inv.price(p.id):null;
   if(s.id&&!p)return`<div class="empty">This purchase was deleted.</div>`;
@@ -632,8 +677,8 @@ function invPricesView(){const rows=[],none=[];Inv.items(true).forEach(it=>(it.u
   return`<h2>Price history</h2>
   <div class="grid3"><div class="stat red"><div class="l">Increased</div><div class="v">${up}</div></div><div class="stat" style="background:var(--green-bg)"><div class="l">Decreased</div><div class="v" style="color:var(--green)">${dn}</div></div><div class="stat"><div class="l">Items priced</div><div class="v">${rows.length}</div></div></div>
   <p class="muted">Latest vs previous purchase, always per the same unit (a sack is only compared with a sack).</p>
-  <div class="card list">${rows.length?rows.map(r=>`<button class="item" data-a="invPriceItem" data-id="${r.it.id}|${r.u.id}"><div class="grow"><b>${esc(r.it.name)}</b> <span class="muted">per ${esc(r.u.name)}</span>
-    <div class="muted">${r.b?`Previous ${RM(r.b.pr.up)} → latest`:"Latest"} <b style="color:#0e1726">${RM(r.a.pr.up)}</b> · ${fmtDs(r.a.p.date)}</div></div>${r.c?invChangeBadge(r.c):`<span class="badge b-navy">1 price</span>`}</button>`).join(""):`<div class="empty">No purchase prices yet. Record a purchase with its price to start the history.</div>`}</div>
+  <div class="card list">${rows.length?rows.map(r=>`<button class="item irow" data-a="invPriceItem" data-id="${r.it.id}|${r.u.id}"><div class="grow"><div class="nm">${esc(r.it.name)}</div><div class="muted">${r.b?`was ${RM(r.b.pr.up)} · `:""}latest ${fmtDs(r.a.p.date)}</div><div class="tags">${r.c?invChangeBadge(r.c):`<span class="badge b-navy">First price</span>`}</div></div>
+    <div class="qty"><div class="ql ${r.c&&r.c.dir==="up"?"q-out":r.c&&r.c.dir==="down"?"q-ok":""}"><b>${RM(r.a.pr.up)}</b><small>per ${esc(r.u.name)}</small></div></div>${invChev}</button>`).join(""):`<div class="empty">No purchase prices yet. Record a purchase with its price to start the history.</div>`}</div>
   ${none.length?`<details><summary>No price yet (${none.length})</summary><div class="muted">${none.map(x=>`${esc(x.it.name)} (${esc(x.u.name)})`).join(", ")}</div></details>`:""}`;}
 function invPriceSheet(s){const[iid,uidv]=s.id.split("|"),it=Inv.item(iid),u=it&&Inv.unit(it,uidv);if(!u)return`<div class="empty">Not found.</div>`;
   const l=Inv.priced(it,u.id),a=l[l.length-1],b=l.length>1?l[l.length-2]:null,c=b?Inv.change(a.pr.up,b.pr.up):null,sups=Inv.suppliers(it,u.id);
@@ -687,8 +732,10 @@ function invReports(){const R=ui.ir||(ui.ir={mode:"week",d:today(),view:"move"})
   <div class="card" style="margin-top:12px"><b>Export</b><p class="muted" style="margin:4px 0 8px">${invRangeTxt(from,to)}. Excel includes stock movement, usage, daily records, purchases and spending.</p>
    <div class="grid2"><button class="btn" data-a="invExportX">Excel (.xlsx)</button><button class="btn sec" data-a="invExportC">CSV (this view)</button></div></div>`;}
 function invRepMove(from,to){const rows=invMoveRows(from,to);
-  return`<p class="muted" style="margin-top:0">Opening = stock at the start of ${fmtDs(from)}. Closing = stock at the end of ${fmtDs(to)}. "Diff" = counted differences (missing or extra stock) in the period.</p>
-  ${INV_CATS.map(k=>{const l=rows.filter(r=>r.it.cat===k.id);if(!l.length)return"";return`<h3>${k.en}</h3><div class="card"><table class="tight"><thead><tr><th>Item</th><th>Open</th><th>Bought</th><th>Used</th><th>Waste</th><th>Close</th><th>Diff</th></tr></thead><tbody>${l.map(r=>`<tr><td><b>${esc(r.it.name)}</b><div class="muted" style="font-size:11px">${esc(r.u.name)}</div></td><td>${fq(r.opening)}</td><td>${fq(r.in)}</td><td>${fq(r.used)}</td><td>${fq(r.waste)}</td><td><b>${fq(r.closing)}</b></td><td>${r.variance?`<span style="color:${r.variance<0?"var(--red)":"#a14d00"};font-weight:700">${signed(r.variance)}</span>`:"–"}</td></tr>`).join("")}</tbody></table></div>`;}).join("")}`;}
+  return`<p class="muted" style="margin-top:0">Open = stock at the start of ${fmtDs(from)} · Close = stock at the end of ${fmtDs(to)}. A red or orange figure means the counts didn't match (stock missing or extra).</p>
+  ${INV_CATS.map(k=>{const l=rows.filter(r=>r.it.cat===k.id);if(!l.length)return"";return`<div class="lhead"><h3>${k.en} <span>· ${k.ms}</span></h3></div><div class="card" style="padding:4px 14px">${l.map(r=>`<div class="mv">
+    <div class="row between"><div><b>${esc(r.it.name)}</b> <span class="muted">${esc(plur(r.u.name,2))}</span></div>${r.variance?`<span class="badge ${r.variance<0?"b-red":"b-orange"}">${r.variance<0?"Missing":"Extra"} ${fq(Math.abs(r.variance))}</span>`:r.days?`<span class="badge b-green">✓ Matched</span>`:`<span class="muted" style="font-size:12px">no updates</span>`}</div>
+    <div class="strip"><div><small>Open</small><b>${fq(r.opening)}</b></div><div><small>In</small><b class="${r.in?"up":""}">${r.in?"+"+fq(r.in):"0"}</b></div><div><small>Used</small><b>${r.used?"−"+fq(r.used):"0"}</b></div><div><small>Waste</small><b class="${r.waste?"down":""}">${r.waste?"−"+fq(r.waste):"0"}</b></div><div class="cl"><small>Close</small><b>${fq(r.closing)}</b></div></div></div>`).join("")}</div>`;}).join("")}`;}
 function invRepUsage(from,to,pf,pt){const rows=invUsageRows(from,to,pf,pt),raw=rows.filter(r=>r.it.raw),chg=(a,b)=>!a&&!b?"–":!b?`<span class="muted">new</span>`:`<span style="color:${a>b?"var(--red)":a<b?"var(--green)":"#6b6f78"};font-weight:700">${a===b?"0%":((a-b)/b*100>0?"+":"")+Math.round((a-b)/b*100)+"%"}</span>`;
   const pot=rows.filter(r=>/kentang|potato/i.test(r.it.name+" "+(r.it.en||"")));
   const tbl=l=>`<table class="tight"><thead><tr><th>Item</th><th>This</th><th>Before</th><th>Change</th></tr></thead><tbody>${l.map(r=>`<tr><td><b>${esc(r.it.en||r.it.name)}</b><div class="muted" style="font-size:11px">${r.it.en?esc(r.it.name)+" · ":""}${esc(r.u.name)}</div></td><td><b>${fq(r.used)}</b></td><td>${fq(r.prev)}</td><td>${chg(r.used,r.prev)}</td></tr>`).join("")}</tbody></table>`;
@@ -869,7 +916,7 @@ function invInput(ev){const t=ev.target,s=ui.sheet;if(!s||!String(s.type).starts
   if(t.dataset.k){s.f=s.f||{};s.f[t.dataset.k]=t.value;}
   if(s.type==="invCount"&&t.dataset.k&&/\.(rx|us|ws|cl)$/.test(t.dataset.k)){const card=t.closest(".ucard");if(!card)return true;const u=card.dataset.u;
     const g=k=>parseQ(val(`ic_${u}_${k}`)),rx=g("rx")||0,us=g("us")||0,ws=g("ws")||0,cl=g("cl");
-    const exp=q3(+card.dataset.open+ +card.dataset.bought+rx-us-ws);card.querySelector(".exp").textContent=fq(exp);card.querySelector(".discbox").innerHTML=invDiscBox(exp,cl);}
+    const exp=q3(+card.dataset.open+ +card.dataset.bought+rx-us-ws);card.querySelector(".exp").textContent=fq(exp);card.querySelector(".eqv").innerHTML=invEq(+card.dataset.open,q3(+card.dataset.bought+rx),us,ws,exp);card.querySelector(".discbox").innerHTML=invDiscBox(exp,cl);}
   if(s.type==="invBuy"&&(t.id==="ibQty"||t.id==="ibUp"||t.id==="ibTot")){const it=Inv.item(val("ibItem")),u=it&&Inv.unit(it,val("ibUnit"));
     /* whichever was typed last fills in the other, so price and total always agree */
     const q=parseQ(val("ibQty")),up=toSen(val("ibUp")),tot=toSen(val("ibTot")),U=document.getElementById("ibUp"),T=document.getElementById("ibTot");
