@@ -182,7 +182,7 @@ const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"
 const KV=["settings","business"];
 const emptyDB=()=>({settings:{priceT:1200,priceP:1000,pct:20,kitchenSeesMoney:false},business:{...BUSINESS},booths:[],entries:[],vendors:[],ventries:[],menu:[],orders:[],audit:[],...invEmpty()});
 let DB=emptyDB();
-const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSync:0,
+const Sync={sb:null,snap:{},busy:false,again:false,edits:0,online:true,timer:null,lastSync:0,
   key(){return"aunty-tauhu-cache-"+(API.me?API.me.id:"x");},
   cache(){try{localStorage.setItem(this.key(),JSON.stringify({DB,snap:this.snap,lastSync:this.lastSync}));}catch(e){}},
   restore(){try{const c=JSON.parse(localStorage.getItem(this.key())||"null");if(c&&c.DB){DB=Object.assign(emptyDB(),c.DB);this.snap=c.snap||{};this.lastSync=c.lastSync||0;return true;}}catch(e){}return false;},
@@ -190,7 +190,8 @@ const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSy
   pending(){for(const c in COLL){const old=this.snap[c]||{};if(DB[c].length!==Object.keys(old).length)return true;for(const r of DB[c])if(old[r.id]!==JSON.stringify(r))return true;}
     return KV.some(k=>this.snap["kv:"+k]!==JSON.stringify(DB[k]));},
   async fetchAll(table){const out=[];for(let from=0;;from+=1000){const{data,error}=await this.sb.from(table).select("id,data").range(from,from+999);if(error)throw error;out.push(...data);if(data.length<1000)break;}return out;},
-  async loadAll(){const db=emptyDB();
+  /* force = take the server copy even if something changed meanwhile (first load, or after a refused change) */
+  async loadAll(force){const db=emptyDB(),edits0=this.edits;
     for(const c in COLL){let rows;
       if(c==="audit"){const{data,error}=await this.sb.from("audit").select("id,data").order("updated_at",{ascending:false}).limit(300);if(error)throw error;rows=data;}
       else if(c in INV_COLL){try{rows=await this.fetchAll(COLL[c]);}catch(e){console.warn("inventory table missing",COLL[c],e);db.invMissing=true;rows=[];}} // inventory tables not created yet: rest of the app keeps working
@@ -198,7 +199,8 @@ const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSy
       db[c]=rows.map(r=>r.data);}
     (await this.fetchAll("kv")).forEach(r=>{if(KV.includes(r.id))db[r.id]=Object.assign(db[r.id],r.data);});
     db.audit.sort((a,b)=>b.at-a.at);db.menu.sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
-    DB=db;this.takeSnap();this.lastSync=Date.now();this.cache();},
+    if(!force&&this.edits!==edits0)return false; // edited during the download: keep the phone's data, send it, download again
+    DB=db;this.takeSnap();this.lastSync=Date.now();this.cache();return true;},
   async flush(){if(!this.sb||!API.me||!this.lastSync)return;if(this.busy){this.again=true;return;}this.busy=true;
     try{const now=new Date().toISOString();
       for(const c in COLL){const t=COLL[c],old=this.snap[c]||{},cur={},ups=[];
@@ -210,17 +212,19 @@ const Sync={sb:null,snap:{},busy:false,again:false,online:true,timer:null,lastSy
       for(const k of KV){const j=JSON.stringify(DB[k]);if(this.snap["kv:"+k]!==j){const{error}=await this.sb.from("kv").upsert({id:k,data:DB[k],updated_at:now});if(error)throw error;this.snap["kv:"+k]=j;}}
       this.lastSync=Date.now();this.setOnline(true);
     }catch(e){console.error("sync",e);
-      if(e&&e.code==="42501"){toast("A change was not allowed (only the owner can edit earlier records). Showing the latest saved data.",true);try{await this.loadAll();this.setOnline(true);render();}catch(e2){this.setOnline(false);}}
+      if(e&&e.code==="42501"){toast("A change was not allowed (only the owner can edit earlier records). Showing the latest saved data.",true);try{await this.loadAll(true);this.setOnline(true);render();}catch(e2){this.setOnline(false);}}
       else{this.setOnline(false);clearTimeout(this.timer);this.timer=setTimeout(()=>this.flush(),15000);}}
     finally{this.busy=false;this.cache();if(this.again){this.again=false;this.flush();}}},
   /* send local changes first, then pull everyone's latest data */
   async refresh(manual){if(!this.sb||!API.me||API.me.role==="pending")return;
     await this.flush();if(!this.online||this.pending()){if(manual)toast("Offline. Your changes will be sent when the signal is back.",true);return;}
-    try{await this.loadAll();this.setOnline(true);render();if(manual)toast("Up to date");if(API.isOwner())Auth.loadStaff();}catch(e){console.error(e);this.setOnline(false);if(manual)toast("Couldn't reach the server",true);}},
+    try{let got=await this.loadAll();for(let i=0;i<3&&!got;i++){await this.flush();if(!this.online||this.pending())return;got=await this.loadAll();}
+      this.setOnline(true);if(!ui.sheet)render(); // never redraw an open box: it would wipe numbers being typed
+      if(manual)toast("Up to date");if(API.isOwner())Auth.loadStaff();}catch(e){console.error(e);this.setOnline(false);if(manual)toast("Couldn't reach the server",true);}},
   async next(kind){const{data,error}=await this.sb.rpc("next_number",{p_kind:kind});if(error)throw error;return data;},
   setOnline(v){if(this.online!==v){this.online=v;render();}}
 };
-const save=()=>{Sync.cache();clearTimeout(Sync.deb);Sync.deb=setTimeout(()=>Sync.flush(),250);};
+const save=()=>{Sync.edits++;Sync.cache();clearTimeout(Sync.deb);Sync.deb=setTimeout(()=>Sync.flush(),250);};
 
 /* ---------- API (replace with Supabase later) ---------- */
 const ok=d=>({ok:true,data:d}),fail=e=>({ok:false,error:e});
