@@ -487,7 +487,10 @@ function invQtyBox(it){const S=Inv.state(it);if(it.mode==="status")return`<div c
   return`<div class="qty">${S.lines.map(l=>`<div class="ql ${l.out?"q-out":l.low?"q-low":""}"><b>${fq(l.qty)}</b><small>${esc(plur(l.u.name,l.qty))}</small></div>`).join("")}${S.combined?`<div class="qsum">= ${qu(S.total,it.units[0].name)}</div>`:""}</div>`;}
 const invChev=`<span class="chev">›</span>`;
 const invEq=(open,inn,us,ws,exp)=>`${fq(open)} + ${fq(inn)} − ${fq(us)} − ${fq(ws)} = <b>${fq(exp)}</b>`;
-function invView(){const P=invPages();if(!ui.inv||!P.some(p=>p[0]===ui.inv))ui.inv=P[0][0];
+function invView(){
+  if(DB.invMissing)return API.isOwner()?`<h2>Stock: one step left</h2><div class="card"><b>Inventory tables are not in Supabase yet.</b><ol style="margin:10px 0 0;padding-left:20px;line-height:1.6"><li>Open supabase.com → your project → <b>SQL Editor</b> → New query</li><li>Paste all of <b>supabase/schema.sql</b> and tap <b>Run</b></li><li>Come back here and tap <b>Sync</b> at the top</li></ol><p class="muted" style="margin-bottom:0">Booths, vendors and orders work as normal meanwhile.</p></div>`
+    :`<div class="card empty">Stock is not switched on yet. Please ask the owner.</div>`;
+  const P=invPages();if(!ui.inv||!P.some(p=>p[0]===ui.inv))ui.inv=P[0][0];
   const body={simple:invSimple,dash:invDash,items:invItemsView,daily:invDaily,usage:invUsage,buys:invBuysView,prices:invPricesView,reports:invReports,restock:invRestockView,settings:invSettings}[ui.inv]();
   setTimeout(()=>{const h=document.querySelector("header");if(h)document.documentElement.style.setProperty("--hh",h.offsetHeight+"px");},0);
   const M=invMain(),more=!M.includes(ui.inv),cur=P.find(p=>p[0]===ui.inv);
