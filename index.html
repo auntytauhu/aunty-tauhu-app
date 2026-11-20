@@ -641,7 +641,7 @@ const Auth={msg:"",mode:"login",staff:[],ownerExists:true,
   async resetPin(id,pin){if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");
     const{error}=await Sync.sb.rpc("owner_set_password",{target:id,new_password:pinPw(pin)});if(error)return fail(error.message);
     const p=this.staff.find(x=>x.id===id);API.log("PIN reset",p?p.name:id);save();return ok();},
-  async changeMyPin(pin,pin2){if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");if(pin!==pin2)return fail("The two PINs don't match");
+  async changeMyPin(pin,pin2){if(!API.isOwner())return fail("Only the owner can change PINs");if(!PIN_RE.test(pin))return fail("PIN must be 4 to 8 numbers");if(pin!==pin2)return fail("The two PINs don't match");
     const{error}=await Sync.sb.auth.updateUser({password:pinPw(pin)});if(error)return fail(error.message);API.log("PIN changed",API.me.name);save();return ok();},
   async setRole(id,role){const{error}=await Sync.sb.from("profiles").update({role}).eq("id",id);if(error){toast("Couldn't update: "+error.message,true);return;}
     const p=this.staff.find(x=>x.id===id);API.log("Staff access changed",`${p?p.name:id} → ${ROLE_LABELS[role]}`);save();toast("Updated");await this.loadStaff();render();}
@@ -911,7 +911,7 @@ function staffSection(){
   <p class="muted">Staff log in with their <b>name</b> and <b>PIN</b>. Kitchen staff only see customer orders.</p>`;}
 /* ----- ACCOUNT ----- */
 function moreView(){return`<div class="card row"><div class="avatar">${esc(API.me.name[0])}</div><div class="grow"><b>${esc(API.me.name)}</b><div class="muted">${ROLE_LABELS[API.me.role]}</div></div><button class="btn sm sec" data-a="logout">Log out</button></div>
-  <button class="btn sec block" style="margin-bottom:12px" data-a="pinSheet" data-id="${API.me.id}">Change my PIN</button>
+  <p class="muted" style="margin:-4px 0 12px">Forgot your PIN? Ask the owner to reset it.</p>
   ${API.isOwner()?`<h3>Activity log</h3><div class="card list">${DB.audit.slice(0,30).map(a=>`<div class="item"><div class="grow"><b>${esc(a.action)}</b><div class="muted">${esc(a.detail)}</div><div class="muted">${esc(a.by)} · ${new Date(a.at).toLocaleString("en-GB")}</div></div></div>`).join("")}</div>`:""}
   <h3>Data</h3><div class="card">${syncLine()}</div>`;}
 
@@ -989,7 +989,7 @@ function sheetView(){const s=ui.sheet,err=s.error?`<div class="err-box">${esc(s.
   else if(s.type==="trend")h=trendSheet(s);
   else if(s.type==="history")h=historySheet(s);
   else if(s.type==="addStaff"){h=`<h2>Add staff</h2>${err}<div class="field"><label>Name (they log in with this)</label><input id="sfN" autocapitalize="words" placeholder="e.g. Kak Yah"></div>
-    <div class="field"><label>PIN (4–8 numbers)</label><input id="sfP" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="e.g. 2580"><div class="hint">Tell them their name and PIN. They can change the PIN later.</div></div>
+    <div class="field"><label>PIN (4–8 numbers)</label><input id="sfP" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="e.g. 2580"><div class="hint">Tell them their name and PIN. Only you (the owner) can change it later.</div></div>
     <div class="field"><label>Access</label><div class="seg" style="margin:0">${[["kitchen","Kitchen staff (orders only)"],["owner","Owner (everything)"]].map(([k,l])=>`<button class="${(s.role||"kitchen")===k?"on":""}" data-a="sfRole" data-id="${k}">${l}</button>`).join("")}</div></div>
     <button class="btn block" data-a="addStaff">Create login</button>`;}
   else if(s.type==="pin"){const me=s.id===API.me.id,p=Auth.staff.find(x=>x.id===s.id);h=`<h2>${me?"Change my PIN":"Reset PIN for "+esc(p?p.name:"")}</h2>${err}
@@ -1041,7 +1041,7 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"addStaffSheet":return open({type:"addStaff",role:"kitchen"});
     case"sfRole":s.role=id;s.sfN=val("sfN");s.sfP=val("sfP");render();document.getElementById("sfN").value=s.sfN;document.getElementById("sfP").value=s.sfP;return;
     case"addStaff":{el.disabled=true;Auth.addStaff(val("sfN"),val("sfP"),s.role||"kitchen").then(r=>{el.disabled=false;if(failed(r))return;ui.sheet=null;toast("Staff login created");render();});return;}
-    case"pinSheet":return open({type:"pin",id});
+    case"pinSheet":if(!API.isOwner())return;return open({type:"pin",id});
     case"savePin":{const a=val("pn1"),b=val("pn2");if(a!==b)return failed({ok:false,error:"The two PINs don't match"});el.disabled=true;
       (s.id===API.me.id?Auth.changeMyPin(a,b):Auth.resetPin(s.id,a)).then(r=>{el.disabled=false;if(failed(r))return;ui.sheet=null;toast("PIN saved");render();});return;}
     case"refresh":Sync.refresh(true);return;
