@@ -15,6 +15,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="inventory.js?v=5"></script>
+<script src="sales.js?v=1"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -703,6 +704,7 @@ function todayView(){
    ${money?`<div class="stat"><div class="l">Gross sales</div><div class="v">${RM(gross)}</div></div><div class="stat"><div class="l">BWA ${DB.settings.pct}%</div><div class="v">${RM(bwa)}</div></div>
    <div class="stat hl" style="grid-column:1/-1"><div class="l">Aunty Tauhu share (booths)</div><div class="v">${RM(net)}</div></div>`:""}
   </div>
+  ${salesDayCard(d)}
   ${ords.length?`<button class="card row" style="width:100%;text-align:left;margin-top:12px" data-a="tab" data-id="orders"><div class="grow"><b>${ords.length} customer order${ords.length>1?"s":""} for this day</b><div class="muted">${ords.map(o=>esc(o.customer)).join(", ")}</div></div><span class="muted">›</span></button>`:""}
   ${rows.some(r=>!r.e&&r.b.active)?`<button class="btn brown block" style="margin:12px 0" data-a="sendAll">Send each remaining booth its usual stock</button>`:""}
   <div class="row between"><h3>Booths (${rows.length})</h3><button class="btn sm sec" data-a="boothEdit" data-id="">+ Add booth</button></div>
@@ -782,6 +784,7 @@ function reportView(){
    <div class="stat"><div class="l">Aunty Tauhu orders (${t.directCount})</div><div class="v">${RM(t.direct)}</div>${R.unpaidDirect?`<div class="muted" style="color:var(--red)">${RM(R.unpaidDirect)} unpaid</div>`:""}</div>
    <div class="stat hl" style="grid-column:1/-1"><div class="l">Total to Aunty Tauhu</div><div class="v">${RM(grand(t))}</div></div>
   </div>
+  ${salesReportSection(from,to)}
   ${(()=>{const list=R.orders.filter(o=>!ui.claimUnclaimed||!o.paid),cl=list.reduce((a,o)=>a+orderTotal(o),0),uncl=list.filter(o=>!o.paid);
    return`<div class="card" style="margin-top:12px;border:2px solid var(--sand)"><b>Claim your money from BWA</b><p class="muted" style="margin:4px 0 10px">For ${fmtD(from)}${from!==to?" – "+fmtD(to):""}</p>
    <div class="row between" style="padding:6px 0;border-bottom:1px solid var(--b200)"><div><b>Booth sales</b><div class="muted">${R.booths.length} booth(s) · due to you ${RM(t.net)}</div></div></div>
