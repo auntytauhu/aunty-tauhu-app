@@ -134,4 +134,24 @@ insert into public.menu (id, data) values
   ('m11', '{"id":"m11","cat":"Add-on","name":"Kuah (per pack)","price":200,"active":true}')
 on conflict (id) do nothing;
 
-select 'Aunty Tauhu database is ready' as result;
+-- ---------- permissions for logged-in users (row rules above still apply) ----------
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on
+  public.profiles, public.kv, public.booths, public.booth_entries, public.vendors,
+  public.vendor_entries, public.menu, public.orders, public.audit
+  to authenticated;
+revoke all on public.counters from anon, authenticated;
+grant execute on function public.my_role() to authenticated;
+grant execute on function public.next_number(text) to authenticated;
+
+-- ---------- repair: accounts created before this setup was run ----------
+insert into public.profiles (id, name, email, role)
+select u.id, coalesce(nullif(u.raw_user_meta_data->>'name', ''), split_part(u.email, '@', 1)), u.email, 'pending'
+from auth.users u
+where not exists (select 1 from public.profiles p where p.id = u.id);
+update public.profiles set role = 'owner'
+where id = (select id from public.profiles order by created_at, email limit 1)
+  and not exists (select 1 from public.profiles where role = 'owner');
+
+select 'Aunty Tauhu database is ready' as result,
+       (select string_agg(name || ' (' || role || ')', ', ' order by created_at) from public.profiles) as accounts;
