@@ -15,7 +15,7 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="inventory.js?v=6"></script>
-<script src="sales.js?v=3"></script>
+<script src="sales.js?v=5"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -1126,6 +1126,8 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"oStatus":API.setOrderStatus(s.id,id);toast("Order "+ST_LABEL[id].toLowerCase());break;
     case"paid":API.togglePaid(s.id);break;
     case"custPaid":API.toggleCustPaid(s.id);toast(custPaid(DB.orders.find(o=>o.id===s.id))?"Marked as paid":"Marked as not paid");break;
+    case"dayPdf":{const P=Pos.get(id,id);if(!P&&Pos.busy[id+"_"+id]){toast("POS sales are still loading. Try again in a moment.",true);return;}
+      saveFile(`Aunty-Tauhu-sales-${id}.pdf`,daySalesPdf(id));return;}
     case"bwaClaimPdf":{const[from,to]=periodRange(ui.period),R=report(from,to),list=R.orders.filter(o=>!ui.claimUnclaimed||!o.paid);
       if(!R.booths.length&&!list.length){toast("Nothing to claim for these dates",true);return;}saveFile(`Aunty-Tauhu-BWA-claim-${from}${from!==to?"_to_"+to:""}.pdf`,bwaClaimPdf(from,to,list));return;}
     case"boothPdf":{const[from,to]=periodRange(ui.period);saveFile(`Aunty-Tauhu-booth-statement-${from}${from!==to?"_to_"+to:""}.pdf`,boothPdf(from,to));return;}
