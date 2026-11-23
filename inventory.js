@@ -728,6 +728,7 @@ function invRestockView(){const owner=API.isOwner(),L=Inv.restock(),todo=L.filte
      ${l.done&&l.row?`<div class="muted">Ticked by ${esc(l.row.by)} ${l.row.at?new Date(l.row.at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):""}</div>`:""}
      ${owner&&!l.auto?`<button class="btn sm ghost" style="margin-top:6px" data-a="invRsRm" data-id="${esc(l.id)}">Remove from list</button>`:""}</div></div>`;
   return`<div class="row between"><h2 style="margin:0">Restock list</h2>${owner?`<button class="btn sm sec" data-a="invRsAdd">+ Add item</button>`:""}</div>
+  ${Push.card()}
   <div class="grid2" style="margin-top:12px"><div class="stat ${todo.length?"orange":""}"><div class="l">To buy</div><div class="v">${todo.length}</div></div>${owner?`<div class="stat hl"><div class="l">Estimated cost</div><div class="v">${RM(est)}</div>${noP?`<div class="muted" style="color:#ffd48a">${noP} without price</div>`:""}</div>`:`<div class="stat"><div class="l">Ticked</div><div class="v">${done.length}</div></div>`}</div>
   <div class="card list" style="margin-top:12px">${todo.length?todo.map(row).join(""):`<div class="empty">Nothing to buy. Items appear here automatically when they reach their minimum level or run out.</div>`}</div>
   ${done.length?`<h3>Ticked as purchased (${done.length})</h3><div class="card list">${done.map(row).join("")}</div><p class="muted">A tick clears automatically when the purchase is recorded.</p>`:""}
@@ -1015,6 +1016,9 @@ function invClick(a,id,el,s){
     case"invRsSave":{const it=Inv.item(val("raItem"));const r=Inv.addManual(val("raItem"),it&&it.mode!=="status"?val("raUnit"):"-");if(invFailed(r))return false;toast("Added to restock list");ui.sheet=null;return;}
     case"invRsRm":Inv.removeManual(id);return;
     case"invRsShare":copyText(invRsText());return false;
+    case"invPushOn":Push.on();return false;
+    case"invPushOff":Push.off();return false;
+    case"invPushTest":Push.test();return false;
     case"invLevels":return open({type:"invLevels"}),false;
     case"invSaveLevels":{const map={};document.querySelectorAll('.sheet input[id^="lv_"]').forEach(i=>{const[,iid,uidv,k]=i.id.match(/^lv_(.+?)_(.+)_(min|target)$/);((map[iid]=map[iid]||{})[uidv]=map[iid][uidv]||{})[k]=i.value;});
       const r=Inv.saveLevels(map);if(invFailed(r))return false;toast(`Saved (${r.data} change${r.data>1?"s":""})`);ui.sheet=null;return;}

@@ -271,5 +271,51 @@ update public.inv_items
    set data = jsonb_set(jsonb_set(data, '{units}', (data->'units') || '[{"id":"u2","name":"large pack"}]'), '{start,u2}', '0')
  where id = 'i01' and not (data->'units' @> '[{"id":"u2"}]');
 
+-- ============================================================
+-- Daily 5 PM shopping-list push notification
+-- (secrets live in Supabase Vault: push_vapid_public, push_vapid_private, push_cron_key — never in this file)
+-- ============================================================
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+create table if not exists public.push_subs (
+  id text primary key,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table public.push_subs enable row level security;
+drop policy if exists own_select on public.push_subs;
+drop policy if exists own_insert on public.push_subs;
+drop policy if exists own_update on public.push_subs;
+drop policy if exists own_delete on public.push_subs;
+create policy own_select on public.push_subs for select to authenticated using ((data->>'uid') = auth.uid()::text);
+create policy own_insert on public.push_subs for insert to authenticated
+  with check ((data->>'uid') = auth.uid()::text and public.my_role() in ('owner','kitchen'));
+create policy own_update on public.push_subs for update to authenticated
+  using ((data->>'uid') = auth.uid()::text) with check ((data->>'uid') = auth.uid()::text);
+create policy own_delete on public.push_subs for delete to authenticated using ((data->>'uid') = auth.uid()::text);
+grant select, insert, update, delete on public.push_subs to authenticated;
+
+create or replace function public.push_secrets()
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_object_agg(name, decrypted_secret), '{}'::jsonb)
+    from vault.decrypted_secrets where name in ('push_vapid_public','push_vapid_private','push_cron_key');
+$$;
+revoke all on function public.push_secrets() from public, anon, authenticated;
+grant execute on function public.push_secrets() to service_role;
+
+grant select on public.inv_items, public.inv_counts, public.inv_purchases, public.inv_prices, public.inv_restock, public.inv_suppliers to service_role;
+grant select, delete on public.push_subs to service_role;
+
+-- 09:00 UTC = 5:00 PM Malaysia. Change '0 9' to '0 10' for 6 PM.
+select cron.unschedule('daily-restock-push') where exists (select 1 from cron.job where jobname = 'daily-restock-push');
+select cron.schedule('daily-restock-push', '0 9 * * *', $c$
+  select net.http_post(
+    url := 'https://dztitujrqmweepqdeppt.supabase.co/functions/v1/daily-restock-push',
+    headers := jsonb_build_object('Content-Type','application/json','x-cron-key',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'push_cron_key')),
+    body := '{"mode":"daily"}'::jsonb)
+$c$);
+
 select 'Aunty Tauhu database is ready' as result,
        (select string_agg(name || ' (' || role || ')', ', ' order by created_at) from public.profiles) as accounts;

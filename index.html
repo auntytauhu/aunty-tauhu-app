@@ -14,8 +14,9 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="inventory.js?v=7"></script>
+<script src="inventory.js?v=9"></script>
 <script src="sales.js?v=5"></script>
+<script src="push.js?v=1"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -652,6 +653,8 @@ const Auth={msg:"",mode:"login",staff:[],ownerExists:true,
     API.me={id:user.id,name:prof.name||"",role:prof.role};
     if(prof.role==="pending"){this.msg="This account has no access. Ask the owner to give you access.";await Sync.sb.auth.signOut();API.me=null;ui.screen="login";render();return;}
     ui.screen="app";ui.tab=API.isOwner()?"today":"orders";ui.date=today();ui.orderFilter=API.isOwner()?"day":"upcoming";
+    if(location.hash==="#restock"){ui.tab="stock";ui.inv="restock";history.replaceState(null,"",location.pathname);} /* opened from the 5 PM notification */
+    Push.init();
     const had=Sync.restore();if(had)render();else{DB=emptyDB();Sync.takeSnap();Sync.lastSync=0;ui.screen="loading";render();} // fresh phone: nothing local to send
     await Sync.refresh();ui.screen="app";render();
     if(API.isOwner())this.loadStaff();},
