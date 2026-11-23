@@ -741,13 +741,12 @@ function todayView(){
   </div>
   ${salesDayCard(d)}
   ${ords.length?`<button class="card row" style="width:100%;text-align:left;margin-top:12px" data-a="tab" data-id="orders"><div class="grow"><b>${ords.length} customer order${ords.length>1?"s":""} for this day</b><div class="muted">${ords.map(o=>esc(o.customer)).join(", ")}</div></div><span class="muted">›</span></button>`:""}
-  ${rows.some(r=>!r.e&&r.b.active)?`<button class="btn brown block" style="margin:12px 0" data-a="sendAll">Send each remaining booth its usual stock</button>`:""}
   <div class="row between"><h3>Booths (${rows.length})</h3><button class="btn sm sec" data-a="boothEdit" data-id="">+ Add booth</button></div>
   ${rows.length>5?`<input class="search" type="search" placeholder="Search booth" data-filter="boothList" autocomplete="off">`:""}
   <div class="card list" id="boothList">${rows.map(({b,e})=>{const c=e?calc(e):null;
     const st=!e?`<span class="badge b-navy">Not sent</span>`:c.done?`<span class="badge b-green">Done</span>`:`<span class="badge b-amber">Waiting leftover</span>`;
     return`<button class="item" data-a="booth" data-id="${b.id}" data-name="${esc(b.name.toLowerCase())}"><div class="grow"><b>${esc(b.name)}</b> ${st}${e&&e.promos.length?` <span class="badge b-sand">Promo</span>`:""}
-      <div class="muted">${!e?`Usual: ${b.defT} tauhu, ${b.defP} popia`:`Sent ${e.sentT} tauhu, ${e.sentP} popia`+(c.done?` · Sold ${c.soldT} / ${c.soldP}`:"")}</div></div>
+      <div class="muted">${!e?`Tap to record stock sent`:`Sent ${e.sentT} tauhu, ${e.sentP} popia`+(c.done?` · Sold ${c.soldT} / ${c.soldP}`:"")}</div></div>
       <div class="right">${c&&c.done&&money?`<b>${RM(c.net)}</b><div class="muted">gross ${RM(c.gross)}</div>`:`<span class="muted">›</span>`}</div></button>`;}).join("")}<div class="empty" data-none style="display:none">No booth matches.</div></div>
   ${(()=>{const ina=DB.booths.filter(b=>!b.active&&!API.entry(d,b.id));return ina.length?`<h3>Inactive booths (${ina.length})</h3><div class="card list">${ina.map(b=>`<button class="item" data-a="boothEdit" data-id="${b.id}"><div class="grow"><b>${esc(b.name)}</b> <span class="badge b-navy">Inactive</span><div class="muted">Tap to rename or turn back on</div></div><span class="muted">›</span></button>`).join("")}</div>`:"";})()}
   <p class="muted">Tap a booth to record stock sent (morning) and leftover (night). Tap <b>Edit booth</b> inside to change its name or usual stock.</p>`;
@@ -961,9 +960,8 @@ function moreView(){return`<div class="card row"><div class="avatar">${esc(API.m
 /* ----- SHEETS ----- */
 function stepper(id,label,sub,v,extra=""){return`<div class="step ${extra}"><div class="lbl"><b>${label}</b><span class="muted">${sub}</span></div><div class="ctl"><button data-a="minus" data-id="${id}">−</button><input id="${id}" inputmode="numeric" value="${v}"><button data-a="plus" data-id="${id}">+</button></div></div>`;}
 function boothSheet(s,err){const b=API.booth(s.id),e=API.entry(ui.date,b.id),c=e?calc(e):null,money=API.seesMoney();
-  let h=`<div class="row between"><h2 style="margin:0">${esc(b.name)}</h2><button class="btn sm ghost" data-a="boothEdit" data-id="${b.id}">Edit booth</button></div><p class="muted" style="margin-top:4px">${dayName(ui.date)}, ${fmtD(ui.date)} · usual ${b.defT} tauhu, ${b.defP} popia</p>${err}
-  <h3>1 · Stock sent</h3>${stepper("sT","Tauhu","packs",e?e.sentT:b.defT)}${stepper("sP","Popia","packs",e?e.sentP:b.defP)}
-  <div class="switch" style="padding:2px 0 10px"><span class="muted">Also save as usual stock for ${esc(b.name)}</span><button class="${s.saveUsual?"on":""}" data-a="saveUsual"></button></div>
+  let h=`<div class="row between"><h2 style="margin:0">${esc(b.name)}</h2><button class="btn sm ghost" data-a="boothEdit" data-id="${b.id}">Edit booth</button></div><p class="muted" style="margin-top:4px">${dayName(ui.date)}, ${fmtD(ui.date)}</p>${err}
+  <h3>1 · Stock sent</h3>${stepper("sT","Tauhu","packs",e?e.sentT:0)}${stepper("sP","Popia","packs",e?e.sentP:0)}
   <button class="btn ${e?"sec":""} block" data-a="send" data-id="${b.id}">${e?"Update stock sent":"Record stock sent"}</button>`;
   if(!e)return h;
   h+=`<p class="muted">Sent by ${esc(e.sentBy)} · ${fmtT(e.sentAt)}</p>
