@@ -317,5 +317,70 @@ select cron.schedule('daily-restock-push', '0 9 * * *', $c$
     body := '{"mode":"daily"}'::jsonb)
 $c$);
 
+-- ============================================================
+-- Customer order form (public page order.html)
+-- Customers are NOT logged in. They can only:
+--   1) read the active menu + shop name/phone (order_form_info)
+--   2) send one order (submit_order). Prices are taken from the menu here,
+--      never from the customer's phone. The order arrives as "Pending".
+-- ============================================================
+create or replace function public.order_form_info()
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'menu', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'name', m.data->>'name', 'cat', m.data->>'cat', 'price', (m.data->>'price')::int) order by m.data->>'cat' desc, (m.data->>'price')::int, m.id)
+              from public.menu m where coalesce((m.data->>'active')::boolean, true)), '[]'::jsonb),
+    'shop', (select jsonb_build_object('name', k.data->>'name', 'phone', k.data->>'phone') from public.kv k where k.id = 'business'),
+    'today', to_char((now() at time zone 'Asia/Kuala_Lumpur')::date, 'YYYY-MM-DD'));
+$$;
+revoke all on function public.order_form_info() from public;
+grant execute on function public.order_form_info() to anon, authenticated;
+
+create or replace function public.submit_order(p jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  v_today date := (now() at time zone 'Asia/Kuala_Lumpur')::date;
+  v_name text := btrim(coalesce(p->>'name', ''));
+  v_phone text := btrim(coalesce(p->>'phone', ''));
+  v_digits text := regexp_replace(coalesce(p->>'phone', ''), '\D', '', 'g');
+  v_addr text := btrim(coalesce(p->>'address', ''));
+  v_notes text := btrim(coalesce(p->>'notes', ''));
+  v_del boolean := coalesce((p->>'delivery')::boolean, false);
+  v_date date; v_items jsonb := '[]'::jsonb; v_total int := 0;
+  it jsonb; m record; q int; n int; v_no text; v_id text;
+begin
+  if char_length(v_name) < 2 or char_length(v_name) > 60 then raise exception 'name' using errcode = 'P0001'; end if;
+  if char_length(v_digits) < 9 or char_length(v_digits) > 15 or char_length(v_phone) > 20 then raise exception 'phone' using errcode = 'P0001'; end if;
+  if v_del and (char_length(v_addr) < 10 or char_length(v_addr) > 300) then raise exception 'address' using errcode = 'P0001'; end if;
+  if char_length(v_notes) > 300 then raise exception 'notes' using errcode = 'P0001'; end if;
+  begin v_date := (p->>'date')::date; exception when others then raise exception 'date' using errcode = 'P0001'; end;
+  if v_date is null or v_date < v_today or v_date > v_today + 180 then raise exception 'date' using errcode = 'P0001'; end if;
+  if jsonb_typeof(p->'items') <> 'array' or jsonb_array_length(p->'items') = 0 or jsonb_array_length(p->'items') > 20 then raise exception 'items' using errcode = 'P0001'; end if;
+  for it in select * from jsonb_array_elements(p->'items') loop
+    select id, data->>'name' as name, (data->>'price')::int as price into m from public.menu where id = it->>'id' and coalesce((data->>'active')::boolean, true);
+    if not found then raise exception 'items' using errcode = 'P0001'; end if;
+    begin q := (it->>'qty')::int; exception when others then raise exception 'items' using errcode = 'P0001'; end;
+    if q is null or q < 1 or q > 200 then raise exception 'items' using errcode = 'P0001'; end if;
+    if v_items @> jsonb_build_array(jsonb_build_object('menuId', m.id)) then raise exception 'items' using errcode = 'P0001'; end if;
+    v_items := v_items || jsonb_build_array(jsonb_build_object('menuId', m.id, 'name', m.name, 'qty', q, 'price', m.price));
+    v_total := v_total + q * m.price;
+  end loop;
+  -- simple limits against spam
+  if (select count(*) from public.orders where data->>'src' = 'form' and regexp_replace(data->>'phone', '\D', '', 'g') = v_digits
+        and (data->>'createdAt')::bigint > (extract(epoch from now()) * 1000)::bigint - 86400000) >= 5 then raise exception 'too_many' using errcode = 'P0001'; end if;
+  if (select count(*) from public.orders where data->>'src' = 'form'
+        and (data->>'createdAt')::bigint > (extract(epoch from now()) * 1000)::bigint - 3600000) >= 40 then raise exception 'busy' using errcode = 'P0001'; end if;
+  insert into public.counters (kind, n) values ('order_direct', 1) on conflict (kind) do update set n = public.counters.n + 1 returning public.counters.n into n;
+  v_no := 'AT-' || lpad(n::text, 4, '0');
+  v_id := 'web' || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
+  insert into public.orders (id, data, updated_at) values (v_id, jsonb_build_object(
+    'id', v_id, 'channel', 'direct', 'no', v_no, 'createdAt', (extract(epoch from now()) * 1000)::bigint,
+    'date', to_char(v_date, 'YYYY-MM-DD'), 'customer', v_name, 'phone', v_phone, 'notes', v_notes, 'items', v_items,
+    'delivery', case when v_del then jsonb_build_object('fee', 0, 'address', v_addr, 'feeTbc', true) else null end,
+    'status', 'new', 'paid', false, 'pending', true, 'src', 'form', 'by', 'Customer form'), now());
+  return jsonb_build_object('no', v_no, 'total', v_total, 'date', to_char(v_date, 'YYYY-MM-DD'), 'delivery', v_del);
+end $$;
+revoke all on function public.submit_order(jsonb) from public;
+grant execute on function public.submit_order(jsonb) to anon, authenticated;
+
 select 'Aunty Tauhu database is ready' as result,
        (select string_agg(name || ' (' || role || ')', ', ' order by created_at) from public.profiles) as accounts;
