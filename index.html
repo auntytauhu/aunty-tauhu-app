@@ -99,6 +99,7 @@ nav .nb{position:absolute;top:3px;left:calc(50% + 6px);min-width:17px;height:17p
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 4px;border-bottom:1px solid var(--b200);text-align:right}th:first-child,td:first-child{text-align:left}
 th{font-size:11px;color:#6b6f78;text-transform:uppercase}tfoot td{font-weight:800;border-bottom:0}
 .switch{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.seg .cnt{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;line-height:18px;margin-left:3px}
 .cust .crow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b200)}.cust .crow:first-of-type{margin-top:8px}.cust .crow small{display:block;font-size:11.5px;font-weight:700;color:var(--brown);text-transform:uppercase;letter-spacing:.3px}.cust .crow .btn{flex:none}
 .switch button{width:52px;height:30px;border-radius:999px;border:0;background:var(--b300);position:relative;flex:none}
 .switch button::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .15s}
@@ -171,7 +172,7 @@ const CH={bwa:{label:"BWA",long:"BWA orders",prefix:"BWA-",paid:"Claimed",unpaid
 const custPaid=o=>o.channel==="direct"?!!o.paid:!!o.custPaid; // has the customer paid? (invoice status)
 /* Pending = order not confirmed yet (e.g. sent from the customer order form). Not counted in sales until confirmed. */
 const payState=o=>o.pending?"pending":custPaid(o)?"paid":"unpaid";
-const PAY={pending:{l:"Pending",b:"b-amber",d:"Not confirmed yet. Not counted in sales."},unpaid:{l:"Unpaid",b:"b-red",d:"Confirmed, waiting for payment."},paid:{l:"Paid",b:"b-green",d:"Customer has paid."}};
+const PAY={pending:{l:"Not paid",b:"b-red",d:"Customer sent the order but has not paid yet. Follow up before the delivery day. Not counted in sales until paid."},unpaid:{l:"Not paid",b:"b-red",d:"Waiting for payment."},paid:{l:"Paid",b:"b-green",d:"Customer has paid."}};
 const waNum=p=>{let d=String(p||"").replace(/\D/g,"");if(d.startsWith("0"))d="6"+d;return d;};
 const TIME_SLOTS=["9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM"];
 const tShort=t=>t?t.replace(":00","").replace(" AM","am").replace(" PM","pm"):"";
@@ -791,7 +792,7 @@ function todayView(){
   DB.entries.filter(e=>e.date===d&&!API.booth(e.boothId).active).forEach(e=>rows.push({b:API.booth(e.boothId),e}));
   let sentT=0,sentP=0,soldT=0,soldP=0,promo=0,gross=0,bwa=0,net=0,done=0,sentN=0;
   rows.forEach(({e})=>{if(!e)return;sentN++;sentT+=e.sentT;sentP+=e.sentP;const c=calc(e);if(c.done){done++;soldT+=c.soldT;soldP+=c.soldP;promo+=c.promoQty;gross+=c.gross;bwa+=c.bwa;net+=c.net;}});
-  const ords=DB.orders.filter(o=>o.date===d&&o.status!=="cancelled"&&!o.pending);
+  const ords=DB.orders.filter(o=>o.date===d&&o.status!=="cancelled");
   return`<div class="datebar"><button data-a="day" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===today()?"Today":`<span data-a="goToday" style="text-decoration:underline">Back to today</span>`}</small></div><button data-a="day" data-id="1">›</button></div>
   <div class="grid2">
    <div class="stat"><div class="l">Sent</div><div class="v">${sentT} <small class="muted">tauhu</small> · ${sentP} <small class="muted">popia</small></div></div>
@@ -800,7 +801,7 @@ function todayView(){
    <div class="stat hl" style="grid-column:1/-1"><div class="l">Aunty Tauhu share (booths)</div><div class="v">${RM(net)}</div></div>`:""}
   </div>
   ${salesDayCard(d)}
-  ${ords.length?`<button class="card row" style="width:100%;text-align:left;margin-top:12px" data-a="tab" data-id="orders"><div class="grow"><b>${ords.length} customer order${ords.length>1?"s":""} for this day</b><div class="muted">${ords.map(o=>esc(o.customer)).join(", ")}</div></div><span class="muted">›</span></button>`:""}
+  ${ords.length?`<button class="card row" style="width:100%;text-align:left;margin-top:12px" data-a="tab" data-id="orders"><div class="grow"><b>${ords.length} customer order${ords.length>1?"s":""} for this day</b><div class="muted">${ords.map(o=>esc(o.customer)+(o.pending||(o.channel==="direct"&&!o.paid)?" (not paid)":"")).join(", ")}</div></div><span class="muted">›</span></button>`:""}
   <div class="row between"><h3>Booths (${rows.length})</h3><div class="row" style="gap:6px">${API.isOwner()?`<button class="btn sm ghost" data-a="toVendors">Vendors ↓</button>`:""}<button class="btn sm sec" data-a="boothEdit" data-id="">+ Add booth</button></div></div>
   ${rows.length>5?`<input class="search" type="search" placeholder="Search booth" data-filter="boothList" autocomplete="off">`:""}
   <div class="card list" id="boothList">${rows.map(({b,e})=>{const c=e?calc(e):null;
@@ -850,21 +851,21 @@ function vendorSheet(s,err){const v=API.vendor(s.id),e=API.vEntry(ui.date,v.id),
 function ordersView(){const money=API.seesMoney(),t=today(),d=ui.date,ch=ui.orderCh,C=CH[ch];let os=DB.orders.filter(o=>o.channel===ch);const f=ui.orderFilter==="today"?"day":ui.orderFilter;
   if(f==="day")os=os.filter(o=>o.date===d);
   if(f==="upcoming")os=os.filter(o=>o.date>=t&&o.status!=="collected"&&o.status!=="cancelled");
-  if(f==="unpaid")os=os.filter(o=>!o.paid&&!o.pending&&o.status!=="cancelled");
-  if(f==="pending")os=os.filter(o=>o.pending&&o.status!=="cancelled");
+  if(f==="unpaid"||f==="pending")os=os.filter(o=>!custPaid(o)&&o.status!=="cancelled"&&(ch==="direct"||!o.paid));
   if(f==="done")os=os.filter(o=>o.status==="collected"||o.status==="cancelled");
   os.sort((a,b)=>f==="done"||f==="all"?b.date.localeCompare(a.date)||tMin(b.time)-tMin(a.time):a.date.localeCompare(b.date)||tMin(a.time)-tMin(b.time));
-  const td=DB.orders.filter(o=>o.channel===ch&&o.date===d&&o.status!=="cancelled"&&!o.pending),npend=DB.orders.filter(o=>o.channel===ch&&o.pending&&o.status!=="cancelled").length,tot=td.reduce((a,o)=>a+orderTotal(o),0),pk=td.reduce((a,o)=>a+o.items.reduce((b,i)=>b+i.qty,0),0);
+  const tdAll=DB.orders.filter(o=>o.channel===ch&&o.date===d&&o.status!=="cancelled"),td=tdAll.filter(o=>!o.pending),tdNp=tdAll.filter(o=>o.pending),npend=0,tot=td.reduce((a,o)=>a+orderTotal(o),0),totNp=tdNp.reduce((a,o)=>a+orderTotal(o),0),pk=tdAll.reduce((a,o)=>a+o.items.reduce((b,i)=>b+i.qty,0),0);
+  const nUnpaid=k=>DB.orders.filter(o=>o.channel===k&&o.date>=t&&o.status!=="cancelled"&&o.status!=="collected"&&!custPaid(o)&&(k==="direct"||o.pending)).length;
   return`<div class="datebar"><button data-a="day" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===t?"Today":`<span data-a="goToday" style="text-decoration:underline">Back to today</span>`}</small></div><button data-a="day" data-id="1">›</button></div>
-  <div class="seg">${Object.entries(CH).map(([k,c])=>`<button class="${ch===k?"on":""}" data-a="orderCh" data-id="${k}">${c.long}</button>`).join("")}</div>
+  <div class="seg">${Object.entries(CH).map(([k,c])=>{const n=k==="direct"?nUnpaid(k):0;return`<button class="${ch===k?"on":""}" data-a="orderCh" data-id="${k}">${c.long}${n?` <span class="cnt">${n}</span>`:""}</button>`;}).join("")}</div>
   <div class="row between"><h2 style="margin:0">${C.long}</h2><button class="btn sm" data-a="newOrder">+ New order</button></div>
   <p class="muted">${ch==="bwa"?"Customers who order through BWA. Full price, no BWA cut. Claim these from BWA.":"Customers who order directly from Aunty Tauhu. For your own record."}</p>
   <button class="btn sec block" style="margin-bottom:12px" data-a="ordPdfForm">Download orders PDF (choose dates)</button>
   ${ch==="direct"&&API.isOwner()?`<div class="card" style="margin-bottom:12px"><b>Customer order form</b><div class="muted" style="margin:2px 0 8px">Share this link. Orders from it come in here as <b>Pending</b>.</div><div class="muted" style="word-break:break-all;font-size:13px;margin-bottom:8px">${esc(FORM_URL())}</div><div class="grid2"><button class="btn sm" data-a="formLinkCopy">Copy link</button><a class="btn sm ghost" href="${esc(FORM_URL())}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Open form</a></div></div>`:""}
-  <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders ${d===t?"today":fmtDs(d)}</div><div class="v">${td.length}</div><div class="muted">${td.filter(o=>o.status==="collected").length} collected · ${td.filter(o=>o.status!=="collected").length} to prepare</div></div>
-   <div class="stat"><div class="l">${money?"Sales":"Packs"} ${d===t?"today":fmtDs(d)}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs</div>`:""}</div></div>
-  <div class="chips">${[["day",d===t?"Today":fmtDs(d)],["upcoming","Upcoming"],...(npend||f==="pending"?[["pending",`Pending (${npend})`]]:[]),["unpaid",C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
-  <div class="card list">${os.length?os.map(o=>`<button class="item" data-a="order" data-id="${o.id}"><div class="grow"><b>${esc(o.customer)}</b> <span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span>${o.pending&&o.status!=="cancelled"?` <span class="badge b-amber">Pending</span>`:money&&!o.paid&&o.status!=="cancelled"?` <span class="badge b-red">${C.unpaid}</span>`:""}${o.src==="form"?` <span class="badge b-sand">Form</span>`:""}
+  <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders ${d===t?"today":fmtDs(d)}</div><div class="v">${tdAll.length}</div><div class="muted">${tdAll.filter(o=>o.status==="collected").length} collected · ${tdAll.filter(o=>o.status!=="collected").length} to prepare${tdNp.length?` · <b style="color:var(--red)">${tdNp.length} not paid</b>`:""}</div></div>
+   <div class="stat"><div class="l">${money?"Sales (paid / confirmed)":"Packs"} ${d===t?"today":fmtDs(d)}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs${totNp?` · +${RM(totNp)} not paid yet`:""}</div>`:""}</div></div>
+  <div class="chips">${[["day",d===t?"Today":fmtDs(d)],["upcoming","Upcoming"],["unpaid",ch==="direct"?"Not paid":C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
+  <div class="card list">${os.length?os.map(o=>`<button class="item" data-a="order" data-id="${o.id}"><div class="grow"><b>${esc(o.customer)}</b> <span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span>${o.status!=="cancelled"&&(o.pending||(o.channel==="direct"&&!o.paid))?` <span class="badge b-red">Not paid</span>`:money&&!o.paid&&o.status!=="cancelled"?` <span class="badge b-red">${C.unpaid}</span>`:""}${o.src==="form"?` <span class="badge b-sand">Form</span>`:""}
      <div class="muted">${o.no} · ${dayName(o.date)} ${fmtDs(o.date)}${o.time?" "+tShort(o.time):""}${o.date===t?" (today)":""}${o.delivery?" · Delivery":""}${o.invoiceNo?" · "+o.invoiceNo:""}</div><div class="muted">${esc(o.items.map(i=>i.qty+"× "+i.name).join(", "))}</div></div>
      ${money?`<b>${RM(orderTotal(o))}</b>`:`<span class="muted">›</span>`}</button>`).join(""):`<div class="empty">${f==="day"?`No orders on ${fmtD(d)}. Tap <b>+ New order</b> to add one for this date.`:"No orders here."}</div>`}</div>`;}
 
@@ -1083,7 +1084,7 @@ function orderDetail(s,err){const o=DB.orders.find(x=>x.id===s.id),money=API.see
    <div class="row" style="gap:8px;margin-top:8px"><div class="field" style="margin:0;flex:1"><input id="dfee" inputmode="decimal" placeholder="e.g. 12.00" value="${o.delivery.feeTbc?"":s2d(o.delivery.fee)}" aria-label="Delivery charge (RM)"></div><button class="btn sm" data-a="saveFee">Save</button></div>
    <div class="muted" style="margin-top:6px">Total to pay: <b>${RM(itemsTotal(o))}</b> items + <b>${o.delivery.feeTbc?"delivery":RM(o.delivery.fee)}</b>${o.delivery.feeTbc?"":` = <b>${RM(orderTotal(o))}</b>`}</div>
    ${o.delivery.feeTbc?"":`<button class="btn sm ghost block" style="margin-top:8px" data-a="copyTotal">Copy total for customer</button>`}</div>`:""}
-  ${o.status!=="cancelled"?`<div class="card"><b>Order status</b><div class="seg" style="margin:8px 0 4px">${Object.entries(PAY).map(([k,p])=>`<button class="${payState(o)===k?"on":""}" data-a="setPay" data-id="${k}">${p.l}</button>`).join("")}</div>
+  ${o.status!=="cancelled"?`<div class="card"><b>Payment</b><div class="seg" style="margin:8px 0 4px">${[[o.src==="form"||o.pending?"pending":"unpaid","Not paid"],["paid","Paid"]].map(([k,l])=>`<button class="${(payState(o)==="paid")===(k==="paid")?"on":""}" data-a="setPay" data-id="${k}">${l}</button>`).join("")}</div>
    <div class="muted">${PAY[payState(o)].d}${payState(o)==="paid"&&o.paidAt?" Paid on "+fmtD(iso(new Date(o.paidAt)))+".":""}</div></div>`:""}
   <div class="card cust"><div class="row between"><b>Customer</b><button class="btn sm" data-a="copyLala">Copy all (Lalamove)</button></div>
    ${[["Name",o.customer,"name"],["Phone",o.phone,"phone"],...(o.delivery?[["Address",o.delivery.address,"address"]]:[]),...(o.notes?[["Remarks",o.notes,"notes"]]:[])].map(([l,v,k])=>`<div class="crow"><div class="grow"><small>${l}</small><div style="white-space:pre-wrap">${v?esc(v):`<span class="muted">–</span>`}</div></div>${v?`<button class="btn sm ghost" data-a="copyF" data-id="${k}">Copy</button>`:""}</div>`).join("")}
