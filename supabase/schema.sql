@@ -330,7 +330,9 @@ returns jsonb language sql stable security definer set search_path = '' as $$
     'menu', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'name', m.data->>'name', 'cat', m.data->>'cat', 'price', (m.data->>'price')::int) order by m.data->>'cat' desc, (m.data->>'price')::int, m.id)
               from public.menu m where coalesce((m.data->>'active')::boolean, true)), '[]'::jsonb),
     'shop', (select jsonb_build_object('name', k.data->>'name', 'phone', k.data->>'phone') from public.kv k where k.id = 'business'),
-    'today', to_char((now() at time zone 'Asia/Kuala_Lumpur')::date, 'YYYY-MM-DD'));
+    'today', to_char((now() at time zone 'Asia/Kuala_Lumpur')::date, 'YYYY-MM-DD'),
+    'now', to_char(now() at time zone 'Asia/Kuala_Lumpur', 'HH24:MI'),
+    'cutoff', '15:00');
 $$;
 revoke all on function public.order_form_info() from public;
 grant execute on function public.order_form_info() to anon, authenticated;
@@ -358,6 +360,11 @@ begin
   if v_time not in ('9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM') then raise exception 'time' using errcode = 'P0001'; end if;
   begin v_date := (p->>'date')::date; exception when others then raise exception 'date' using errcode = 'P0001'; end;
   if v_date is null or v_date < v_today or v_date > v_today + 180 then raise exception 'date' using errcode = 'P0001'; end if;
+  -- same-day orders: only until 3:00 PM, and only for a time that has not passed
+  if v_date = v_today then
+    if (now() at time zone 'Asia/Kuala_Lumpur')::time >= time '15:00' then raise exception 'same_day_closed' using errcode = 'P0001'; end if;
+    if to_timestamp(v_time, 'HH12:MI AM')::time <= (now() at time zone 'Asia/Kuala_Lumpur')::time then raise exception 'time_passed' using errcode = 'P0001'; end if;
+  end if;
   if jsonb_typeof(p->'items') <> 'array' or jsonb_array_length(p->'items') = 0 or jsonb_array_length(p->'items') > 40 then raise exception 'items' using errcode = 'P0001'; end if;
   for it in select * from jsonb_array_elements(p->'items') loop
     select id, data->>'name' as name, (data->>'price')::int as price, data->>'cat' as cat into m from public.menu where id = it->>'id' and coalesce((data->>'active')::boolean, true);

@@ -17,6 +17,7 @@
 <script src="inventory.js?v=10"></script>
 <script src="sales.js?v=5"></script>
 <script src="push.js?v=1"></script>
+<script src="preorder.js?v=1"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -64,6 +65,14 @@ nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;border-top
 nav .in{display:flex;max-width:720px;margin:0 auto}
 nav button{flex:1;border:0;background:none;padding:8px 0 10px;font-size:11px;color:#7a7f88;display:flex;flex-direction:column;align-items:center;gap:2px}
 nav button.on{color:var(--navy);font-weight:700}nav svg{width:24px;height:24px}
+nav button{position:relative;min-width:0;white-space:nowrap}nav .in:has(button:nth-child(7)) button{font-size:10px;letter-spacing:-.2px}
+nav .nb{position:absolute;top:3px;left:calc(50% + 6px);min-width:17px;height:17px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:10.5px;font-weight:800;line-height:17px;padding:0 4px}
+.pcard{padding:12px 14px;margin-bottom:12px}.pcard .ph{display:flex;align-items:flex-start;gap:8px;width:100%;border:0;background:none;padding:0;text-align:left;font:inherit;color:inherit}
+.pcard .pitems{margin:8px 0;font-size:15px}.pcard .paddr{display:flex;gap:8px;align-items:center;background:var(--b100);border-radius:12px;padding:8px 10px;margin:6px 0}
+.pcard .paddr small{display:block;font-size:11px;font-weight:700;color:var(--brown);text-transform:uppercase}
+.pcard .ptot{border-top:1px dashed var(--b300);margin:8px 0 10px;padding-top:6px}.pcard .ptot .r{display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px}
+.pcard .ptot .t{font-weight:800;font-size:18px}.pcard .pfee{display:flex;align-items:center;gap:6px}.pcard .pfee input{width:76px;border:2px solid var(--navy);border-radius:10px;padding:7px 8px;font:inherit;font-weight:700;text-align:right}
+.btn.wa{background:#1f8f4e;color:#fff}.btn:disabled{opacity:.5}
 .field{margin-bottom:12px}.field label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;color:var(--brown-900)}
 .field input,.field select,.field textarea{width:100%;border:1px solid var(--b300);border-radius:10px;padding:11px 12px;background:#fff;font-size:16px}
 .field .hint{font-size:12px;color:#6b6f78;margin-top:4px}
@@ -740,11 +749,11 @@ setInterval(()=>{if(document.visibilityState==="visible"&&ui.screen==="app"&&!ui
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ui={tab:"today",date:today(),period:"week",orderFilter:"day",sheet:null,pdf:{daily:true,weekly:true,booths:true,vendors:true,orders:true,packs:true},claimUnclaimed:true,orderCh:"bwa"};
-const ICONS={stock:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',vendors:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',today:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+const ICONS={pre:'<path d="M12 21s-7-4.4-7-10a7 7 0 0 1 14 0c0 5.6-7 10-7 10z"/><path d="M9 10.5l2 2 4-4"/>',stock:'<path d="M3 8l9-5 9 5v9l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v9"/>',vendors:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',today:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',report:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   settings:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',more:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'};
 const icon=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
 let tt;function toast(m,err){let el=$(".toast");if(el)el.remove();el=document.createElement("div");el.className="toast"+(err?" err":"");el.textContent=m;document.body.appendChild(el);clearTimeout(tt);tt=setTimeout(()=>el.remove(),2600);}
-function tabs(){if(API.isOwner())return[["today","Booths"],["vendors","Vendors"],["orders","Orders"],["stock","Stock"],["report","Reports"],["settings","Settings"]];return[["orders","Orders"],["stock","Stock"],["more","Account"]];}
+function tabs(){if(API.isOwner())return[["today","Booths"],["vendors","Vendors"],["orders","Orders"],["pre","Pre-order"],["stock","Stock"],["report","Reports"],["settings","Settings"]];return[["orders","Orders"],["pre","Pre-order"],["stock","Stock"],["more","Account"]];}
 
 function render(){
   const sc=ui.screen||"loading";
@@ -753,12 +762,12 @@ function render(){
   if(sc==="pending"){$("#root").innerHTML=`<div class="login"><div class="hero"><img src="${LOGO_PNG}" alt="Aunty Tauhu"></div><div class="card"><b>Hi ${esc(API.me.name)}!</b><p class="muted">Your account is waiting for the owner to approve it. Ask the owner to open <b>Settings → Staff</b> and tap <b>Approve</b>.</p><button class="btn block" data-a="recheck">Check again</button><button class="btn ghost block" style="margin-top:10px" data-a="logout">Log out</button></div></div>`;return;}
   if(sc==="login"||!API.me){$("#root").innerHTML=loginView();return;}
   const T=tabs();if(!T.some(t=>t[0]===ui.tab))ui.tab="today";
-  const body={today:todayView,vendors:vendorsView,orders:ordersView,report:reportView,settings:settingsView,more:moreView,stock:invView}[ui.tab]();
+  const body={pre:preView,today:todayView,vendors:vendorsView,orders:ordersView,report:reportView,settings:settingsView,more:moreView,stock:invView}[ui.tab]();
   const scroll=ui.sheet&&$(".sheet")?$(".sheet").scrollTop:0;
-  $("#root").innerHTML=`<div class="app"><header><div><img class="hlogo" src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="hsub">${ui.tab==="stock"?"Inventory":API.isOwner()?"Booths, vendors & orders":"Orders & stock"}</div></div>
+  $("#root").innerHTML=`<div class="app"><header><div><img class="hlogo" src="${LOGO_PNG}" alt="Aunty Tauhu"><div class="hsub">${ui.tab==="stock"?"Inventory":ui.tab==="pre"?"Pre-orders":API.isOwner()?"Booths, vendors & orders":"Orders & stock"}</div></div>
    <div class="who"><b>${esc(API.me.name)}</b>${ROLE_LABELS[API.me.role]}<br><button class="sync ${Sync.online?"":"off"}" data-a="refresh">${Sync.online?"⟳ Sync":"Offline · retry"}</button></div></header>
    ${Sync.online?"":`<div class="offbar">No connection. Your changes are saved on this phone and will be sent automatically.</div>`}
-   <main>${body}</main><nav><div class="in">${T.map(([id,l])=>`<button class="${ui.tab===id?"on":""}" data-a="tab" data-id="${id}">${icon(id)}${l}</button>`).join("")}</div></nav></div>${ui.sheet?sheetView():""}`;
+   <main>${body}</main><nav><div class="in">${T.map(([id,l])=>{const nb=id==="pre"?preCount():0;return`<button class="${ui.tab===id?"on":""}" data-a="tab" data-id="${id}">${icon(id)}${l}${nb?`<i class="nb">${nb}</i>`:""}</button>`;}).join("")}</div></nav></div>${ui.sheet?sheetView():""}`;
   if(scroll&&$(".sheet"))$(".sheet").scrollTop=scroll;
 }
 function loginView(){const setup=Auth.mode==="setup";
@@ -1242,7 +1251,7 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"doFresh":{const r=API.clearRecords();if(failed(r))return;ui.sheet=null;ui.tab="today";toast("All records cleared. Ready to start!");break;}
 
     case"closeSheet":ui.sheet=null;break;
-    default:if(a.startsWith("inv")&&invClick(a,id,el,s)===false)return;
+    default:if(a.startsWith("inv")&&invClick(a,id,el,s)===false)return;if(a.startsWith("pre")&&preClick(a,id,el)===false)return;
   }render();});
 /* search boxes: case-insensitive filter, no re-render (keeps the keyboard open) */
 document.addEventListener("input",ev=>{invInput(ev);});

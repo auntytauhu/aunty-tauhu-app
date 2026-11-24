@@ -54,7 +54,7 @@ h2{font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--brown
 select{width:100%;border:1px solid var(--b300);border-radius:12px;padding:12px;font:inherit;font-size:16px;background:#fff;color:#0e1726;-webkit-appearance:none;appearance:none;
  background-image:linear-gradient(45deg,transparent 50%,#5c4130 50%),linear-gradient(135deg,#5c4130 50%,transparent 50%);background-position:calc(100% - 20px) 52%,calc(100% - 14px) 52%;background-size:6px 6px;background-repeat:no-repeat}
 .slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.slots button{border:1px solid var(--b300);background:#fff;border-radius:10px;padding:9px 0;font:inherit;font-weight:700;font-size:14px;color:var(--navy)}
-.slots button.on{background:var(--navy);color:#fff;border-color:var(--navy)}.loading{text-align:center;color:#6b6f78;padding:40px 0}
+.slots button:disabled{opacity:.3;text-decoration:line-through}.slots button.on{background:var(--navy);color:#fff;border-color:var(--navy)}.loading{text-align:center;color:#6b6f78;padding:40px 0}
 </style>
 </head>
 <body>
@@ -71,9 +71,16 @@ const fmtD=s=>new Date(s+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"shor
 const OPTS=["Daging","Ayam","Veggie"],SLOTS=["9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM"];
 const short=t=>t.replace(":00","").replace(" AM","am").replace(" PM","pm");
 const isAdd=m=>/^add/i.test(m.cat||"");
-const S={menu:[],shop:{},today:"",qty:{},open:{},del:false,date:"",time:"",name:"",phone:"",address:"",notes:"",err:"",busy:false,done:null};
+const slotMin=t=>{const m=t.match(/(\d+):(\d+) (AM|PM)/);return((+m[1]%12)+(m[3]==="PM"?12:0))*60+(+m[2]);};
+const hm=s=>{const[a,b]=String(s||"0:0").split(":");return(+a)*60+(+b);};
+/* same-day orders close at 3:00 PM; for today only times that have not passed */
+const nowMin=()=>hm(S.now)+Math.floor((Date.now()-S.loadedAt)/60000);
+const sameDayOpen=()=>nowMin()<hm(S.cutoff);
+const minDate=()=>sameDayOpen()?S.today:addDays(S.today,1);
+const slotOk=t=>S.date!==S.today||(sameDayOpen()&&slotMin(t)>nowMin());
+const S={now:"00:00",cutoff:"15:00",loadedAt:Date.now(),menu:[],shop:{},today:"",qty:{},open:{},del:false,date:"",time:"",name:"",phone:"",address:"",notes:"",err:"",busy:false,done:null};
 const ERR={name:"Please enter your name.",phone:"Please enter a phone number we can WhatsApp (e.g. 012-345 6789).",address:"Please enter the full delivery address.",notes:"Remarks are too long (max 300 letters).",
-  date:"Please choose a date from today onwards.",time:"Please choose a time.",items:"Please choose at least one item.",filling:"Please choose Daging, Ayam or Veggie for each item.",too_many:"You have sent many orders today. Please WhatsApp us instead.",busy:"We are getting many orders right now. Please try again in a few minutes or WhatsApp us."};
+  date:"Please choose a date from today onwards.",same_day_closed:"Same-day orders close at 3:00 PM. Please choose tomorrow or a later date.",time_passed:"That time has passed. Please choose a later time.",time:"Please choose a time.",items:"Please choose at least one item.",filling:"Please choose Daging, Ayam or Veggie for each item.",too_many:"You have sent many orders today. Please WhatsApp us instead.",busy:"We are getting many orders right now. Please try again in a few minutes or WhatsApp us."};
 const mOf=k=>S.menu.find(m=>m.id===k.split("|")[0]),qOf=id=>Object.entries(S.qty).filter(([k])=>k.split("|")[0]===id).reduce((a,[,q])=>a+q,0);
 const total=()=>Object.entries(S.qty).reduce((a,[k,q])=>a+q*(mOf(k)?mOf(k).price:0),0),count=()=>Object.values(S.qty).reduce((a,b)=>a+b,0);
 const lines=()=>S.menu.flatMap(m=>(isAdd(m)?[""]:OPTS).filter(o=>S.qty[m.id+"|"+o]).map(o=>({m,opt:o,qty:S.qty[m.id+"|"+o],name:m.name+(o?" - "+o:"")})));
@@ -82,14 +89,14 @@ const waLink=(txt)=>{let p=String(S.shop.phone||"").replace(/\D/g,"");if(p.start
 async function load(){
   const{data,error}=await sb.rpc("order_form_info");
   if(error||!data){app.innerHTML=`<div class="err">Couldn't load the menu. Please check your connection and refresh.</div>`;return;}
-  Object.assign(S,{menu:data.menu||[],shop:data.shop||{},today:data.today});S.date=addDays(S.today,1);render();}
+  Object.assign(S,{menu:data.menu||[],shop:data.shop||{},today:data.today,now:data.now||"00:00",cutoff:data.cutoff||"15:00",loadedAt:Date.now()});S.date=addDays(S.today,1);render();}
 
 function form(){
   const cats=[...new Set(S.menu.map(m=>m.cat))];
   return`<header><img src="icons/icon-192.png" alt="Aunty Tauhu"><h1>Order form</h1><p class="sub">Choose your order, then send it to us on WhatsApp.</p></header>
   ${cats.map(c=>`<h2>${esc(c)}</h2><div class="card">${S.menu.filter(m=>m.cat===c).map(item).join("")}</div>`).join("")}
-  <h2>When</h2><div class="box"><div class="field"><label for="fDate">Date</label><input type="date" id="fDate" min="${S.today}" max="${addDays(S.today,180)}" value="${S.date}"></div>
-    <div class="field" style="margin:0"><label>Time</label><div class="slots">${SLOTS.map(t=>`<button type="button" class="${S.time===t?"on":""}" data-a="time" data-id="${t}">${short(t)}</button>`).join("")}</div></div></div>
+  <h2>When</h2><div class="box"><div class="field"><label for="fDate">Date</label><input type="date" id="fDate" min="${minDate()}" max="${addDays(S.today,180)}" value="${S.date}"><div class="hint">${sameDayOpen()?"Same-day orders: until 3:00 PM today.":"Same-day orders are closed (after 3:00 PM). Earliest is tomorrow."}</div></div>
+    <div class="field" style="margin:0"><label>Time</label><div class="slots">${SLOTS.map(t=>`<button type="button" class="${S.time===t?"on":""}" data-a="time" data-id="${t}" ${slotOk(t)?"":"disabled"}>${short(t)}</button>`).join("")}</div></div></div>
   <h2>Pick up or delivery</h2><div class="box"><div class="seg"><button type="button" class="${S.del?"":"on"}" data-a="del" data-id="0">Self pick up</button><button type="button" class="${S.del?"on":""}" data-a="del" data-id="1">Delivery</button></div>
     ${S.del?`<div class="field"><label for="fAddr">Delivery address</label><textarea id="fAddr" maxlength="300" placeholder="House no, street, area, postcode, city">${esc(S.address)}</textarea></div><div class="note" style="margin:0">The delivery charge depends on the distance. We will reply on WhatsApp with the charge and the total to pay.</div>`:`<div class="note" style="margin:0">We will reply on WhatsApp with the pick up place.</div>`}</div>
   <h2>Your details</h2><div class="box">
@@ -132,7 +139,8 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-a]")
   if(a==="again"){Object.assign(S,{qty:{},open:{},notes:"",time:"",done:null,err:""});render();scrollTo(0,0);return;}
   if(a==="send"){
     const items=Object.entries(S.qty).map(([k,qty])=>{const[id,opt]=k.split("|");return{id,qty,opt:opt||""};});
-    const bad=!items.length?"items":(!S.date||S.date<S.today)?"date":!S.time?"time":(S.del&&S.address.trim().length<10)?"address":S.name.trim().length<2?"name":S.phone.replace(/\D/g,"").length<9?"phone":"";
+    if(S.time&&!slotOk(S.time))S.time="";
+    const bad=!items.length?"items":(!S.date||S.date<S.today)?"date":(S.date===S.today&&!sameDayOpen())?"same_day_closed":!S.time?"time":(S.del&&S.address.trim().length<10)?"address":S.name.trim().length<2?"name":S.phone.replace(/\D/g,"").length<9?"phone":"";
     if(bad){S.err=ERR[bad];render();$("#err").scrollIntoView({block:"center"});return;}
     S.busy=true;S.err="";render();
     const{data,error}=await sb.rpc("submit_order",{p:{name:S.name.trim(),phone:S.phone.trim(),address:S.del?S.address.trim():"",notes:S.notes.trim(),delivery:S.del,date:S.date,time:S.time,items}});
@@ -142,6 +150,7 @@ document.addEventListener("click",async e=>{const b=e.target.closest("[data-a]")
     if(S.shop.phone)setTimeout(()=>{location.href=waLink(waText(data));},400); /* open WhatsApp with the full order */}});
 document.addEventListener("input",e=>{const t=e.target;if(t.dataset.q){setQty(t.dataset.q,parseInt(t.value,10)||0);const st=t.closest(".step");st.querySelector('[data-a="dec"]').disabled=!S.qty[t.dataset.q];
   const tot=$("#tot");if(tot)tot.textContent=RM(total());const sm=$(".bar small");if(sm)sm.textContent=`${count()} item${count()===1?"":"s"}${S.del?" + delivery":""}`;}});
+document.addEventListener("change",e=>{if(e.target.id==="fDate"){read();if(S.time&&!slotOk(S.time))S.time="";render();}});
 load();
 </script>
 </body>
