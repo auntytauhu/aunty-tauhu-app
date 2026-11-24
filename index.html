@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="inventory.js?v=9"></script>
+<script src="inventory.js?v=10"></script>
 <script src="sales.js?v=5"></script>
 <script src="push.js?v=1"></script>
 <style>
@@ -435,7 +435,8 @@ class Pdf{
     const draw=(r,bold,fill)=>{if(this.need(rh)){head();}if(fill)this.rect(X0,this.y,W,rh,fill);
       r.forEach((v,i)=>{const c=cols[i],max=c.w*W-8;const s=fit(v,8,bold,max);const x=c.align==="right"?xs[i]+c.w*W-4:xs[i]+4;this.text(x,this.y+11.5,s,{size:8,bold,align:c.align});});
       this.y+=rh;this.line(X0,this.y,X0+W,this.y);};
-    rows.forEach((r,i)=>Array.isArray(r)?draw(r,false,i%2?[251,248,242]:null):draw(r.cells,!!r.bold,r.fill||null));
+    const span=(r)=>{if(this.need(rh)){head();}if(r.fill)this.rect(X0,this.y,W,rh,r.fill);this.text(X0+4+(r.indent||0),this.y+11.5,fit(r.text,8,false,W-8-(r.indent||0)),{size:8,color:r.color||[14,23,38]});this.y+=rh;this.line(X0,this.y,X0+W,this.y);};
+    rows.forEach((r,i)=>Array.isArray(r)?draw(r,false,i%2?[251,248,242]:null):r.span?span(r):draw(r.cells,!!r.bold,r.fill||null));
     if(foot)draw(foot,true,[245,239,227]);
     this.y+=6;}
   build(){const objs=[];const font=(n,b)=>`<< /Type /Font /Subtype /Type1 /BaseFont /${b} /Encoding /WinAnsiEncoding >>`;
@@ -593,6 +594,34 @@ function bwaClaimPdf(from,to,list){
   pdf.need(90);pdf.y+=24;
   [["Prepared by (Aunty Tauhu)",M],["Verified & received by (BWA)",M+W/2+10]].forEach(([l,x])=>{pdf.line(x,pdf.y+30,x+W/2-20,pdf.y+30,[14,23,38],0.8);pdf.text(x,pdf.y+44,l,{size:8.5,color:[107,111,120]});pdf.text(x,pdf.y+58,"Date:",{size:8.5,color:[107,111,120]});});
   pdfFoot(pdf,"Claim to BWA");return pdf.build();}
+/* Customer orders list for a date range (e.g. upcoming December orders) */
+function ordersList(from,to,ch){return DB.orders.filter(o=>o.date>=from&&o.date<=to&&o.status!=="cancelled"&&(ch==="all"||o.channel===ch)).sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt||0)-(b.createdAt||0));}
+function ordersPdf(from,to,ch){
+  const pdf=new Pdf(),M=pdf.M,W=pdf.W-2*M,money=API.seesMoney(),list=ordersList(from,to,ch),packs=o=>o.items.reduce((a,i)=>a+i.qty,0);
+  const chTxt=ch==="all"?"All customer orders (BWA + Aunty Tauhu)":CH[ch].long;
+  pdfHead(pdf,"Customer Orders",chTxt,periodTxt(from,to),`Prepared ${new Date().toLocaleString("en-GB")}`);
+  const totP=list.reduce((a,o)=>a+packs(o),0),totA=list.reduce((a,o)=>a+orderTotal(o),0),days=[...new Set(list.map(o=>o.date))];
+  const n=money?3:2,bw=(W-6*(n-1))/n,box=(i,l,v,dark)=>{const x=M+i*(bw+6);pdf.rect(x,pdf.y,bw,46,dark?[21,33,58]:[245,239,227]);pdf.text(x+8,pdf.y+15,l,{size:7.5,color:dark?[200,208,224]:[107,111,120]});pdf.text(x+8,pdf.y+34,v,{size:14,bold:true,color:dark?[255,255,255]:[14,23,38]});};
+  box(0,"Orders",`${list.length} (${days.length} day${days.length===1?"":"s"})`);box(1,"Packs",String(totP),!money);if(money)box(2,"Total amount",RM(totA),true);pdf.y+=58;
+  if(!list.length){pdf.text(M,pdf.y+10,"No orders for these dates.",{size:10,color:[107,111,120]});pdfFoot(pdf,"Customer orders");return pdf.build();}
+  pdf.heading("1. Orders by date");
+  const cols=[{h:"Order / customer",w:money?.23:.27},{h:"Phone",w:.12},{h:"Item",w:money?.24:.29},{h:"Qty",w:.06,align:"right"},{h:"Collect / deliver",w:.12},{h:"Status",w:money?.12:.14}];
+  if(money)cols.push({h:"Amount",w:.11,align:"right"});
+  const rows=[],pad=a=>money?a:a.slice(0,6);
+  days.forEach(d=>{const l=list.filter(o=>o.date===d);
+    rows.push({cells:pad([`${dayName(d)}, ${fmtD(d)}`,"","","","","",""]),bold:true,fill:[236,226,207]});
+    l.forEach((o,k)=>{const st=ST_LABEL[o.status]+(money&&!o.paid?`, ${o.channel==="bwa"?"unclaimed":"unpaid"}`:""),how=o.delivery?"Delivery":"Collect";
+      const its=o.items.length?o.items:[{name:"-",qty:0,price:0}];
+      its.forEach((i,j)=>rows.push({cells:pad([j?"":`${o.customer} (${o.no})`,j?"":(o.phone||"-"),i.name,i.qty,j?"":how,j?"":st,j?"":RM(orderTotal(o))]),fill:k%2?[251,248,242]:null}));
+      if(o.delivery&&o.delivery.address)rows.push({span:true,text:`Deliver to: ${o.delivery.address}`,indent:12,color:[92,65,48],fill:k%2?[251,248,242]:null});
+      if(o.notes)rows.push({span:true,text:`Note: ${o.notes}`,indent:12,color:[92,65,48],fill:k%2?[251,248,242]:null});});
+    rows.push({cells:pad([`   Day total: ${l.length} order${l.length===1?"":"s"}`,"","",l.reduce((a,o)=>a+packs(o),0),"","",RM(l.reduce((a,o)=>a+orderTotal(o),0))]),bold:true,fill:[245,239,227]});});
+  pdf.table(cols,rows,pad([`Total: ${list.length} orders`,"","",totP,"","",RM(totA)]));
+  pdf.heading("2. Items to prepare by date");
+  const prep=[];days.forEach(d=>{const m=new Map();list.filter(o=>o.date===d).forEach(o=>o.items.forEach(i=>m.set(i.name,(m.get(i.name)||0)+i.qty)));
+    [...m].forEach(([nm,q],j)=>prep.push({cells:[j?"":`${dayName(d)}, ${fmtD(d)}`,nm,q],bold:false,fill:j?null:[251,248,242]}));});
+  pdf.table([{h:"Date",w:.3},{h:"Item",w:.5},{h:"Qty",w:.2,align:"right"}],prep,["Total","",totP]);
+  pdfFoot(pdf,"Customer orders");return pdf.build();}
 function boothPdf(from,to){
   const pdf=new Pdf(),M=pdf.M,W=pdf.W-2*M,R=report(from,to),t=R.tot,pct=DB.settings.pct;
   pdfHead(pdf,"Booth Sales Statement","BWA booths (consignment)",periodTxt(from,to),`Prepared ${new Date().toLocaleString("en-GB")}`);
@@ -798,6 +827,7 @@ function ordersView(){const money=API.seesMoney(),t=today(),d=ui.date,ch=ui.orde
   <div class="seg">${Object.entries(CH).map(([k,c])=>`<button class="${ch===k?"on":""}" data-a="orderCh" data-id="${k}">${c.long}</button>`).join("")}</div>
   <div class="row between"><h2 style="margin:0">${C.long}</h2><button class="btn sm" data-a="newOrder">+ New order</button></div>
   <p class="muted">${ch==="bwa"?"Customers who order through BWA. Full price, no BWA cut. Claim these from BWA.":"Customers who order directly from Aunty Tauhu. For your own record."}</p>
+  <button class="btn sec block" style="margin-bottom:12px" data-a="ordPdfForm">Download orders PDF (choose dates)</button>
   <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders ${d===t?"today":fmtDs(d)}</div><div class="v">${td.length}</div><div class="muted">${td.filter(o=>o.status==="collected").length} collected · ${td.filter(o=>o.status!=="collected").length} to prepare</div></div>
    <div class="stat"><div class="l">${money?"Sales":"Packs"} ${d===t?"today":fmtDs(d)}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs</div>`:""}</div></div>
   <div class="chips">${[["day",d===t?"Today":fmtDs(d)],["upcoming","Upcoming"],["unpaid",C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
@@ -1050,6 +1080,13 @@ function sheetView(){const s=ui.sheet,err=s.error?`<div class="err-box">${esc(s.
     <div class="field"><label>Promo discount (%)</label><input id="vPP2" inputmode="decimal" value="${v.promoPct}"></div>
     ${s.id?`<div class="card switch"><div><b>Active</b><div class="muted">Inactive vendors don't show in the daily list.</div></div><button class="${s.active?"on":""}" data-a="toggleActive"></button></div>`:""}
     <button class="btn block" data-a="saveVendor" data-id="${s.id}">Save</button>`;}
+  else if(s.type==="ordPdf"){const L=ordersList(s.from,s.to,s.ch),pk=L.reduce((a,o)=>a+o.items.reduce((b,i)=>b+i.qty,0),0);
+    h=`<h2>Orders PDF</h2><p class="muted">List of customer orders between two dates, grouped by date, with the items to prepare.</p>
+    <div class="chips">${[["next7","Next 7 days"],["next30","Next 30 days"],["month","This month"],["nextmonth","Next month"]].map(([k,l])=>`<button class="chip ${s.q===k?"on":""}" data-a="ordPdfQ" data-id="${k}">${l}</button>`).join("")}</div>
+    <div class="grid2"><div class="field"><label>From</label><input type="date" id="opFrom" value="${s.from}"></div><div class="field"><label>To</label><input type="date" id="opTo" value="${s.to}"></div></div>
+    <div class="seg">${[["all","All orders"],...Object.entries(CH).map(([k,c])=>[k,c.long])].map(([k,l])=>`<button class="${s.ch===k?"on":""}" data-a="ordPdfCh" data-id="${k}">${l}</button>`).join("")}</div>
+    <div class="note" style="margin:10px 0">${L.length} order${L.length===1?"":"s"} · ${pk} packs${s.from>s.to?" · <b>From</b> must be before <b>To</b>":""}</div>
+    <button class="btn block" data-a="ordPdf" ${L.length&&s.from<=s.to?"":"disabled"}>Download PDF</button>`;}
   else if(s.type==="order")h=orderDetail(s,err);
   else if(s.type==="boothEdit"){const b=s.id?API.booth(s.id):{name:"",defT:20,defP:10};
     h=`<h2>${s.id?"Edit booth":"Add booth"}</h2>${err}<div class="field"><label>Booth name</label><input id="bN" value="${esc(b.name)}" placeholder="e.g. Alamanda"></div>
@@ -1113,6 +1150,13 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"vendorEdit":{const v=id?API.vendor(id):null;return open({type:"vendorEdit",id,active:v?v.active:true,promoOn:v?v.promoOn:false,back:s&&s.type==="vendor"});}
     case"togglePromoOn":s.promoOn=!s.promoOn;el.classList.toggle("on");return;
     case"saveVendor":{const r=API.saveVendor(id,{name:val("vN"),priceT:val("vPT"),priceP:val("vPP"),pct:val("vC"),defT:val("vT"),defP:val("vP"),promoPct:val("vPP2"),promoOn:s.promoOn,active:s.active});if(failed(r))return;ui.sheet=s.back||(s.active!==false&&!s.id)?{type:"vendor",id:r.data}:null;if(ui.sheet&&!API.vendor(r.data).active)ui.sheet=null;toast("Vendor saved");break;}
+    case"ordPdfForm":return open({type:"ordPdf",q:"next30",from:today(),to:addDays(today(),30),ch:ui.orderCh||"all"});
+    case"ordPdfQ":{const t=today(),[y,m]=t.split("-").map(Number),first=(yy,mm)=>`${yy}-${String(mm).padStart(2,"0")}-01`,nm=m===12?[y+1,1]:[y,m+1],nm2=nm[1]===12?[nm[0]+1,1]:[nm[0],nm[1]+1];
+      s.q=id;if(id==="next7"){s.from=t;s.to=addDays(t,6);}else if(id==="next30"){s.from=t;s.to=addDays(t,30);}
+      else if(id==="month"){s.from=first(y,m);s.to=addDays(first(...nm),-1);}else{s.from=first(...nm);s.to=addDays(first(...nm2),-1);}break;}
+    case"ordPdfCh":s.ch=id;break;
+    case"ordPdf":{if(!ordersList(s.from,s.to,s.ch).length){toast("No orders for these dates",true);return;}
+      saveFile(`Aunty-Tauhu-orders-${s.from}${s.from!==s.to?"_to_"+s.to:""}.pdf`,ordersPdf(s.from,s.to,s.ch));return;}
     case"orderFilter":ui.orderFilter=id;break;
     case"orderCh":ui.orderCh=id;break;
     case"fCh":s.form.channel=id;break;
@@ -1180,7 +1224,7 @@ document.addEventListener("input",ev=>{const t=ev.target,s=ui.sheet;if(!s||s.typ
   if(t.id&&t.id.startsWith("q_")){const n=API.int(t.value)??0;s.form.qty[t.id.slice(2)]=n;t.closest(".step").classList.toggle("has",n>0);$("#oTotal").textContent=formTotalText(s.form);}});
 document.addEventListener("submit",ev=>{if(ev.target.id!=="authForm")return;ev.preventDefault();const n=val("aN"),pin=val("aP");
   if(Auth.mode==="setup")Auth.setupOwner(n,pin,val("aP2"));else Auth.login(n,pin);});
-document.addEventListener("change",ev=>{if(invChange(ev))return;if((ev.target.id==="hFrom"||ev.target.id==="hTo")&&ui.sheet){ui.sheet.from=val("hFrom");ui.sheet.to=val("hTo");if(ui.sheet.from>ui.sheet.to)[ui.sheet.from,ui.sheet.to]=[ui.sheet.to,ui.sheet.from];render();return;}if(ev.target.id==="from"||ev.target.id==="to"){ui.from=val("from");ui.to=val("to");if(ui.from>ui.to)[ui.from,ui.to]=[ui.to,ui.from];render();}});
+document.addEventListener("change",ev=>{if(invChange(ev))return;if((ev.target.id==="hFrom"||ev.target.id==="hTo")&&ui.sheet){ui.sheet.from=val("hFrom");ui.sheet.to=val("hTo");if(ui.sheet.from>ui.sheet.to)[ui.sheet.from,ui.sheet.to]=[ui.sheet.to,ui.sheet.from];render();return;}if((ev.target.id==="opFrom"||ev.target.id==="opTo")&&ui.sheet&&ui.sheet.type==="ordPdf"){const S=ui.sheet;S.from=val("opFrom")||S.from;S.to=val("opTo")||S.to;if(S.from>S.to)[S.from,S.to]=[S.to,S.from];S.q="";render();return;}if(ev.target.id==="from"||ev.target.id==="to"){ui.from=val("from");ui.to=val("to");if(ui.from>ui.to)[ui.from,ui.to]=[ui.to,ui.from];render();}});
 Auth.init();
 </script>
 </body>

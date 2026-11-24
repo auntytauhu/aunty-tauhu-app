@@ -27,7 +27,7 @@ const INV_ST={available:"Available",low:"Running low",out:"Out of stock"};
 /* ---------- quantities (up to 3 decimals, rounded to avoid 0.1+0.2 errors) ---------- */
 const q3=x=>Math.round((Number(x)||0)*1000)/1000;
 const fq=x=>x==null||x===""?"–":String(q3(x));
-const plur=(name,n)=>!name?"":(q3(n)===1||/s$/i.test(name))?name:name+"s";
+const plur=(name,n)=>!name?"":(q3(n)===1||/s$/i.test(name))?name:/(x|ch|sh)$/i.test(name)?name+"es":name+"s";
 const qu=(n,name)=>`${fq(n)} ${plur(name,n)}`;
 const signed=x=>(x>0?"+":"")+fq(x);
 /* "" = left empty, null = not a valid number, otherwise the number */
@@ -444,7 +444,7 @@ details summary{cursor:pointer;font-weight:600;color:var(--navy2);padding:6px 0}
 .strip .cl{background:var(--navy);color:#fff}.strip .cl small{color:#c8d0e0}
 .sitem{padding:12px 0;border-bottom:1px solid var(--b200)}.sitem:last-child{border-bottom:0}.sitem .nm{font-weight:800;font-size:16.5px}
 .srow{margin-top:8px}.su{font-size:12px;font-weight:700;color:var(--brown);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
-.sg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.sg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.sg.two{grid-template-columns:1fr 1fr}.srow.c{display:grid;grid-template-columns:1fr 78px 104px;gap:8px;align-items:center}.srow.c .su{margin:0}.srow.c .sfoot{margin-top:2px;font-size:12.5px;gap:6px}.srow.c .sbox b,.srow.c .sbox input{font-size:20px}
 .sbox{background:#fff;border:1px solid var(--b300);border-radius:12px;padding:6px 8px 4px}
 .sbox small{display:block;font-size:11px;color:#6b6f78;font-weight:600}
 .sbox b{display:block;font-size:22px;font-weight:800;color:var(--navy);padding:2px 0 3px}
@@ -873,7 +873,6 @@ Inv.saveSimple=async function(date,rows,stats,why){
     const add=parseQ(r.add),cl=parseQ(r.cl);if(add==null)return invFail(`${nm}: "Added" must be a number (e.g. 2 or 1.5)`);if(cl==null)return invFail(`${nm}: "Closing" must be a number`);
     let up=null;if(owner&&String(r.price||"").trim()!==""){up=toSen(r.price);if(up==null)return invFail(`${nm}: enter the price like 15.00`);}
     const open=this.openFor(it,u.id,date),other=this.otherBought(it,u.id,date),avail=q3(open+other+(add||0));
-    if(cl!==""&&cl>avail)return invFail(`${nm}: closing (${fq(cl)}) is more than stock today + added (${fq(avail)}). If stock came in, enter it under "Added".`);
     const ar=this.addRec(date,it.id,u.id),rec=this.rec(date,it.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
     const addCh=(add||0)!==(ar?ar.qty:0),clCh=(cl===""?null:cl)!==(L.cl==null?null:L.cl),priceCh=up!=null&&!(ar&&this.price(ar.id)&&this.price(ar.id).up===up);
     if(!addCh&&!clCh&&!priceCh)continue;
@@ -896,11 +895,11 @@ Inv.saveSimple=async function(date,rows,stats,why){
   this.bump();
   /* 2) closing counts (used = stock today + added − closing) */
   const byItem=new Map();plan.filter(x=>x.clCh||(x.addCh&&x.cl!=="")).forEach(x=>{if(!byItem.has(x.it.id))byItem.set(x.it.id,{it:x.it,lines:{}});
-    byItem.get(x.it.id).lines[x.u.id]=x.cl===""?{cl:null,us:0,ws:0,rx:0}:{cl:x.cl,us:q3(x.avail-x.cl),ws:0,rx:0};});
+    byItem.get(x.it.id).lines[x.u.id]=x.cl===""?{cl:null,us:0,ws:0,rx:0}:x.cl>x.avail?{cl:x.cl,us:0,ws:0,rx:q3(x.cl-x.avail)}:{cl:x.cl,us:q3(x.avail-x.cl),ws:0,rx:0};});
   st.forEach(x=>{if(!byItem.has(x.it.id))byItem.set(x.it.id,{it:x.it,lines:{}});byItem.get(x.it.id).st=x.st;});
   byItem.forEach(g=>{const patch={lines:g.lines};if(g.st)patch.st=g.st;this.apply(date,g.it,patch,W);});
   this.bump();
-  const txt=[...plan.map(x=>`${x.nm}: ${x.addCh?"added "+fq(x.add)+", ":""}${x.cl!==""?"closing "+fq(x.cl)+" (used "+fq(q3(x.avail-x.cl))+")":"closing not counted"}${x.up!=null?` @ ${RM(x.up)}`:""}`),...st.map(x=>`${x.it.name}: ${INV_ST[x.st]}`)];
+  const txt=[...plan.map(x=>`${x.nm}: ${x.addCh?"added "+fq(x.add)+", ":""}${x.cl!==""?"left "+fq(x.cl)+(x.cl>x.avail?" (stock in "+fq(q3(x.cl-x.avail))+")":" (used "+fq(q3(x.avail-x.cl))+")"):"left not counted"}${x.up!=null?` @ ${RM(x.up)}`:""}`),...st.map(x=>`${x.it.name}: ${INV_ST[x.st]}`)];
   API.log(W?"Daily stock corrected":"Daily stock",`${fmtD(date)}: ${txt.join("; ")}${W?` · reason: ${W}`:""}`);save();return ok(plan.length+st.length);};
 const i0=pid=>DB.invPrices.some(q=>q.id===pid);
 const INV_SST={available:"Available",low:"Low",out:"Out"};
@@ -914,30 +913,28 @@ function invSimple(){const d=ui.invSDate||(ui.invSDate=today()),edit=Inv.canEdit
         <div class="seg" style="margin:8px 0 0">${Object.entries(INV_SST).map(([k,l])=>`<button class="${cur===k?"on":""} sst-${k}" data-a="invSSt" data-id="${it.id}:${k}" ${dis}>${l}</button>`).join("")}</div></div>`;}
     return`<div class="sitem" data-name="${esc((it.name+" "+(it.en||"")).toLowerCase())}"><div class="row between"><div class="nm">${esc(it.name)}${it.en?` <span class="muted">${esc(it.en)}</span>`:""}</div>${saved}</div>
       ${it.units.map(u=>{const k=`${it.id}.${u.id}`,open=Inv.openFor(it,u.id,d),other=Inv.otherBought(it,u.id,d),ar=Inv.addRec(d,it.id,u.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
-        const add=dv(k+".a",ar&&ar.qty?String(ar.qty):""),cl=dv(k+".c",L.cl==null?"":String(L.cl)),pr=dv(k+".p",""),lp=owner?Inv.lastPrice(it,u.id):null;
+        const add=ar&&ar.qty?String(ar.qty):"",cl=dv(k+".c",L.cl==null?"":String(L.cl)),inn=q3(other+(ar?ar.qty:0));
         const used=invSUsed(open,other,add,cl);
-        return`<div class="srow" data-k="${k}" data-open="${open}" data-other="${other}">${it.units.length>1?`<div class="su">${esc(u.name)}</div>`:""}
-          <div class="sg"><div class="sbox ro"><small>Stock today</small><b>${fq(open)}</b></div>
-            <div class="sbox"><small>Added</small><input id="sa_${it.id}_${u.id}" data-sk="${k}.a" inputmode="decimal" placeholder="0" value="${esc(add)}" ${dis}></div>
-            <div class="sbox cl"><small>Closing</small><input id="sc_${it.id}_${u.id}" data-sk="${k}.c" inputmode="decimal" placeholder="count" value="${esc(cl)}" ${dis}></div></div>
-          <div class="sfoot"><span class="sused">${used}</span>${other?`<span class="muted">+${fq(other)} from Purchases</span>`:""}
-            ${owner&&edit?`<label class="sprice">Price RM<input id="sp_${it.id}_${u.id}" data-sk="${k}.p" inputmode="decimal" placeholder="${lp?s2d(lp.pr.up):"optional"}" value="${esc(pr)}"></label>`:""}</div></div>`;}).join("")}</div>`;};
+        return`<div class="srow c" data-k="${k}" data-open="${open}" data-other="${other}" data-add="${add||0}">
+          <div class="sl"><div class="su">${esc(u.name)}</div><div class="sfoot"><span class="sused">${used}</span>${inn?`<span class="muted">+${fq(inn)} bought</span>`:""}</div></div>
+          <div class="sbox ro"><small>Today</small><b>${fq(open)}</b></div>
+          <div class="sbox cl"><small>Left now</small><input id="sc_${it.id}_${u.id}" data-sk="${k}.c" inputmode="decimal" placeholder="–" value="${esc(cl)}" ${dis}></div></div>`;}).join("")}</div>`;};
   const list=INV_CATS.map(c=>{const l=all.filter(i=>i.cat===c.id);return l.length?`<div class="lhead"><h3>${c.en}</h3><span>${l.filter(i=>Inv.rec(d,i.id)).length}/${l.length}</span></div><div class="card list">${l.map(card).join("")}</div>`:"";}).join("");
   return`<div class="datebar"><button data-a="invSDay" data-id="-1">‹</button><div class="d">${dayName(d)}, ${fmtD(d)}<small>${d===today()?"Today":`<span data-a="invSDayToday" style="text-decoration:underline">Go to today</span>`}</small></div><button data-a="invSDay" data-id="1" ${d>=today()?"disabled style='opacity:.3'":""}>›</button></div>
-  <div class="card" style="padding:12px 14px"><div class="row between"><div><b>Daily stock</b><div class="muted">Fill in <b>Added</b> (if any) and <b>Closing</b>. Stock today comes from yesterday's closing.</div></div><div class="big ${done===all.length?"g":""}" style="flex:none">${done}<small>/${all.length}</small></div></div><div class="pbar"><i style="width:${pct}%"></i></div></div>
+  <div class="card" style="padding:12px 14px"><div class="row between"><div><b>Daily stock</b><div class="muted">Count what is <b>left</b> and fill it in. Stock today comes from yesterday's count.</div></div><div class="big ${done===all.length?"g":""}" style="flex:none">${done}<small>/${all.length}</small></div></div><div class="pbar"><i style="width:${pct}%"></i></div></div>
   ${edit?"":`<div class="note">View only. Only the owner can change earlier days.</div>`}
   <input class="search" type="search" placeholder="Search item" data-filter="invSList" autocomplete="off">
   <div id="invSList">${list}<div class="empty" data-none style="display:none">No item matches.</div></div>
   ${edit?`${ui.sdWhy?`<div class="field" style="margin-top:12px"><label>Reason for changing saved figures</label><input id="sWhy" data-sk="why" value="${esc(dv("why",""))}" placeholder="e.g. miscounted" style="border-color:var(--red)"></div>`:""}
   <div class="sbar"><button class="btn brown block" data-a="invSaveSimple">Save all</button></div>`:""}
-  <p class="muted">Used = stock today + added − closing (worked out automatically). Items with an empty closing are not saved as a count.</p>`;}
+  <p class="muted">Used = stock today − left (worked out automatically). If more is left than before, the extra is counted as new stock. Empty boxes are not saved.</p>`;}
 function invSUsed(open,other,add,cl){const a=parseQ(add),c=parseQ(cl);if(c===""||c==null)return`<span class="muted">Used: –</span>`;if(a==null)return"";
-  const u=q3(open+other+(a||0)-c);return u<0?`<span class="down">Closing is more than stock!</span>`:`Used: <b>${fq(u)}</b>`;}
+  const u=q3(open+other+(a||0)-c);return u<0?`<span class="muted">New stock in: <b>${fq(-u)}</b></span>`:`Used: <b>${fq(u)}</b>`;}
 function invSimpleCollect(){const d=ui.invSDate,D=ui.sd||{},rows=[],stats=[];
   Inv.items().forEach(it=>{if(it.mode==="status"){if(`${it.id}.st` in D)stats.push({itemId:it.id,st:D[`${it.id}.st`]});return;}
     it.units.forEach(u=>{const k=`${it.id}.${u.id}`,ar=Inv.addRec(d,it.id,u.id),rec=Inv.rec(d,it.id),L=rec&&rec.lines&&rec.lines[u.id]||{};
-      if(!(k+".a" in D)&&!(k+".c" in D)&&!(k+".p" in D))return;
-      rows.push({itemId:it.id,unitId:u.id,add:k+".a" in D?D[k+".a"]:(ar&&ar.qty?String(ar.qty):""),cl:k+".c" in D?D[k+".c"]:(L.cl==null?"":String(L.cl)),price:D[k+".p"]||""});});});
+      if(!(k+".c" in D))return;
+      rows.push({itemId:it.id,unitId:u.id,add:ar&&ar.qty?String(ar.qty):"",cl:D[k+".c"],price:""});});});
   return{rows,stats};}
 
 /* ----- sheet router ----- */
@@ -1033,7 +1030,7 @@ function invClick(a,id,el,s){
 /* typing: keep values in the sheet state (so an error message never wipes them) + live calculations */
 function invInput(ev){const t=ev.target,s=ui.sheet;
   if(t.dataset&&t.dataset.sk){ui.sd=ui.sd||{};ui.sd[t.dataset.sk]=t.value;const row=t.closest(".srow");
-    if(row){const k=row.dataset.k,g=x=>{const e=document.getElementById(`s${x}_${k.replace(".","_")}`);return e?e.value:"";};row.querySelector(".sused").innerHTML=invSUsed(+row.dataset.open,+row.dataset.other,g("a"),g("c"));}return true;}
+    if(row){const k=row.dataset.k,g=x=>{const e=document.getElementById(`s${x}_${k.replace(".","_")}`);return e?e.value:"";};row.querySelector(".sused").innerHTML=invSUsed(+row.dataset.open,+row.dataset.other,row.dataset.add||"0",g("c"));}return true;}
   if(!s||!String(s.type).startsWith("inv")||!t.dataset)return false;
   if(t.dataset.k){s.f=s.f||{};s.f[t.dataset.k]=t.value;}
   if(s.type==="invCount"&&t.dataset.k&&/\.(rx|us|ws|cl)$/.test(t.dataset.k)){const card=t.closest(".ucard");if(!card)return true;const u=card.dataset.u;

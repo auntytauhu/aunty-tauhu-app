@@ -4,7 +4,7 @@
    suite compares both on the same data. */
 const q3 = (x) => Math.round((Number(x) || 0) * 1000) / 1000;
 const fq = (x) => String(q3(x));
-const plur = (name, n) => !name ? "" : (q3(n) === 1 || /s$/i.test(name)) ? name : name + "s";
+const plur = (name, n) => !name ? "" : (q3(n) === 1 || /s$/i.test(name)) ? name : /(x|ch|sh)$/i.test(name) ? name + "es" : name + "s";
 const addDays = (s, n) => { const d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const CAT_ORDER = { dry: 0, wet: 1, pack: 2, frozen: 3 };
 
