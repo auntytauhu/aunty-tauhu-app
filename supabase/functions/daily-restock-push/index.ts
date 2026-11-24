@@ -1,5 +1,6 @@
-// Aunty Tauhu: daily 5 PM shopping-list notification.
-//  - called every day by the Supabase scheduler (header x-cron-key) -> sends to every phone that turned it on
+// Aunty Tauhu notifications.
+//  - {mode:"daily"} (scheduler, x-cron-key): 5 PM shopping list -> phones with the shopping list turned on
+//  - {mode:"neworder", id} (database, x-cron-key): a customer sent the order form -> phones with new orders turned on
 //  - called from the app by a signed-in user with {mode:"test"} -> sends to that user's phones only
 //  - {mode:"preview"} -> returns the message without sending (signed-in user)
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -26,12 +27,55 @@ Deno.serve(async (req) => {
     const cronKey = req.headers.get("x-cron-key");
     if (cronKey) {
       if (cronKey !== sec.push_cron_key) return json({ error: "bad_key" }, 401);
+      if (body?.mode === "neworder") mode = "neworder";
     } else {
       const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
       const { data: u } = token ? await admin.auth.getUser(token) : { data: null };
       if (!u?.user) return json({ error: "not_logged_in" }, 401);
       uid = u.user.id;
       mode = body?.mode === "preview" ? "preview" : "test";
+    }
+
+    const vapid = { publicKey: sec.push_vapid_public, privateKey: sec.push_vapid_private, subject: "https://auntytauhu.github.io/aunty-tauhu-app/" };
+    const sendAll = async (payload: Record<string, string>, want: (d: Record<string, unknown>) => boolean, onlyUid: string | null) => {
+      let q = admin.from("push_subs").select("id,data");
+      if (onlyUid) q = q.eq("data->>uid", onlyUid);
+      const { data: subs, error: qe } = await q;
+      if (qe) throw qe;
+      const list = (subs ?? []).filter((s: { data: Record<string, unknown> }) => want(s.data || {}));
+      let sent = 0, failed = 0, removed = 0;
+      const errors: unknown[] = [];
+      for (const s of list) {
+        try {
+          const r = await sendPush(s.data, payload, vapid);
+          if (r.ok) sent++;
+          else if (r.gone) { await admin.from("push_subs").delete().eq("id", s.id); removed++; }
+          else { failed++; errors.push({ status: r.status, detail: r.detail, who: s.data?.name }); }
+        } catch (e) { failed++; errors.push({ error: String(e).slice(0, 200), who: s.data?.name }); }
+      }
+      return { phones: list.length, sent, failed, removed, errors };
+    };
+    const prefOn = (k: string) => (d: Record<string, unknown>) => ((d.prefs as Record<string, boolean>) ?? {})[k] !== false;
+
+    // ---- new order from the customer form ----
+    if (mode === "neworder") {
+      const { data: row, error: oe } = await admin.from("orders").select("data").eq("id", String(body?.id ?? "")).maybeSingle();
+      if (oe) throw oe;
+      const o = row?.data as Record<string, any> | undefined;
+      if (!o) return json({ error: "order_not_found" }, 404);
+      const RM = (sen: number) => "RM" + (sen / 100).toFixed(2);
+      const items = (o.items ?? []) as { qty: number; name: string; price: number }[];
+      const total = items.reduce((a, i) => a + i.qty * i.price, 0), packs = items.reduce((a, i) => a + i.qty, 0);
+      const d = new Date(o.date + "T00:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+      const payload = {
+        title: `New pre-order: ${o.customer}${o.time ? " · " + o.time : ""}`,
+        body: `${o.no} · ${d}${o.time ? ", " + o.time : ""} · ${o.delivery ? "Delivery" : "Pick up"} · ${packs} pack${packs === 1 ? "" : "s"}, ${RM(total)}${o.delivery ? " + delivery. Set the delivery charge." : ". Send the total to the customer."}`,
+        url: "./#pre",
+        tag: "order-" + o.id,
+      };
+      const res = await sendAll(payload, prefOn("orders"), null);
+      console.log(JSON.stringify({ mode, order: o.no, ...res }));
+      return json({ mode, title: payload.title, ...res });
     }
 
     // stock data (all rows, in pages of 1000)
@@ -58,23 +102,10 @@ Deno.serve(async (req) => {
       url: "./#restock",
       tag: "restock",
     };
-    let q = admin.from("push_subs").select("id,data");
-    if (uid) q = q.eq("data->>uid", uid);
-    const { data: subs, error: qe } = await q;
-    if (qe) throw qe;
-    const vapid = { publicKey: sec.push_vapid_public, privateKey: sec.push_vapid_private, subject: "https://auntytauhu.github.io/aunty-tauhu-app/" };
-    let sent = 0, failed = 0, removed = 0;
-    const errors: unknown[] = [];
-    for (const s of subs ?? []) {
-      try {
-        const r = await sendPush(s.data, payload, vapid);
-        if (r.ok) sent++;
-        else if (r.gone) { await admin.from("push_subs").delete().eq("id", s.id); removed++; }
-        else { failed++; errors.push({ status: r.status, detail: r.detail, who: s.data?.name }); }
-      } catch (e) { failed++; errors.push({ error: String(e).slice(0, 200), who: s.data?.name }); }
-    }
-    console.log(JSON.stringify({ mode, toBuy: lines.filter((l) => !l.done).length, phones: subs?.length ?? 0, sent, failed, removed, errors }));
-    return json({ mode, title: payload.title, phones: subs?.length ?? 0, sent, failed, removed, errors });
+    // the test goes to all of this user's phones; the daily list only to phones that keep it on
+    const res = await sendAll(payload, mode === "test" ? () => true : prefOn("restock"), uid);
+    console.log(JSON.stringify({ mode, toBuy: lines.filter((l) => !l.done).length, ...res }));
+    return json({ mode, title: payload.title, ...res });
   } catch (e) {
     console.log("error", String(e));
     return json({ error: "server_error", detail: String(e).slice(0, 300) }, 500);

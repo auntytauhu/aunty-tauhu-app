@@ -342,6 +342,20 @@ $$;
 revoke all on function public.order_form_info() from public;
 grant execute on function public.order_form_info() to anon, authenticated;
 
+-- New order from the customer form -> push notification to owner + staff phones
+grant select on public.orders to service_role;
+create or replace function public.notify_new_order(p_id text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  perform net.http_post(
+    url := 'https://dztitujrqmweepqdeppt.supabase.co/functions/v1/daily-restock-push',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-key',
+      (select decrypted_secret from vault.decrypted_secrets where name = 'push_cron_key')),
+    body := jsonb_build_object('mode', 'neworder', 'id', p_id));
+exception when others then null; -- a notification problem must never stop the order
+end $$;
+revoke all on function public.notify_new_order(text) from public, anon, authenticated;
+
 create or replace function public.submit_order(p jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
@@ -398,6 +412,7 @@ begin
     'date', to_char(v_date, 'YYYY-MM-DD'), 'time', v_time, 'customer', v_name, 'phone', v_phone, 'notes', v_notes, 'items', v_items,
     'delivery', case when v_del then jsonb_build_object('fee', 0, 'address', v_addr, 'feeTbc', true) else null end,
     'status', 'new', 'paid', false, 'pending', true, 'src', 'form', 'by', 'Customer form'), now());
+  begin perform public.notify_new_order(v_id); exception when others then null; end;
   return jsonb_build_object('no', v_no, 'total', v_total, 'date', to_char(v_date, 'YYYY-MM-DD'), 'time', v_time, 'delivery', v_del);
 end $$;
 revoke all on function public.submit_order(jsonb) from public;

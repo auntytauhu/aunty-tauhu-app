@@ -1016,6 +1016,7 @@ function invClick(a,id,el,s){
     case"invPushOn":Push.on();return false;
     case"invPushOff":Push.off();return false;
     case"invPushTest":Push.test();return false;
+    case"invPushPref":Push.pref(id);return false;
     case"invLevels":return open({type:"invLevels"}),false;
     case"invSaveLevels":{const map={};document.querySelectorAll('.sheet input[id^="lv_"]').forEach(i=>{const[,iid,uidv,k]=i.id.match(/^lv_(.+?)_(.+)_(min|target)$/);((map[iid]=map[iid]||{})[uidv]=map[iid][uidv]||{})[k]=i.value;});
       const r=Inv.saveLevels(map);if(invFailed(r))return false;toast(`Saved (${r.data} change${r.data>1?"s":""})`);ui.sheet=null;return;}

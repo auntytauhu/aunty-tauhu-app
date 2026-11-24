@@ -14,10 +14,10 @@
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="inventory.js?v=10"></script>
+<script src="inventory.js?v=11"></script>
 <script src="sales.js?v=5"></script>
-<script src="push.js?v=1"></script>
-<script src="preorder.js?v=1"></script>
+<script src="push.js?v=2"></script>
+<script src="preorder.js?v=2"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -100,6 +100,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px 4px;b
 th{font-size:11px;color:#6b6f78;text-transform:uppercase}tfoot td{font-weight:800;border-bottom:0}
 .switch{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .seg .cnt{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;line-height:18px;margin-left:3px}
+.tpill{flex:none;min-width:46px;text-align:center;background:var(--navy);color:#fff;border-radius:10px;padding:6px 4px;font-weight:800;font-size:13.5px;margin-right:10px;align-self:center}
+.chips.small .chip{padding:5px 11px;font-size:13px}
 .cust .crow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--b200)}.cust .crow:first-of-type{margin-top:8px}.cust .crow small{display:block;font-size:11.5px;font-weight:700;color:var(--brown);text-transform:uppercase;letter-spacing:.3px}.cust .crow .btn{flex:none}
 .switch button{width:52px;height:30px;border-radius:999px;border:0;background:var(--b300);position:relative;flex:none}
 .switch button::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .15s}
@@ -177,6 +179,9 @@ const waNum=p=>{let d=String(p||"").replace(/\D/g,"");if(d.startsWith("0"))d="6"
 const TIME_SLOTS=["9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM"];
 const tShort=t=>t?t.replace(":00","").replace(" AM","am").replace(" PM","pm"):"";
 const tMin=t=>{if(!t)return 9999;const m=t.match(/(\d+):(\d+) (AM|PM)/);return m?((+m[1]%12)+(m[3]==="PM"?12:0))*60+(+m[2]):9999;};
+/* where the order came from (direct orders) */
+const SRC={form:{l:"Online",b:"b-navy",long:"Online order (customer form)"},walkin:{l:"Walk-in",b:"b-green",long:"Walk-in"},whatsapp:{l:"WhatsApp",b:"b-sand",long:"WhatsApp / message"},phone:{l:"Phone",b:"b-sand",long:"Phone call"}};
+const srcBadge=o=>o.channel==="direct"&&SRC[o.src]?`<span class="badge ${SRC[o.src].b}">${SRC[o.src].l}</span>`:"";
 const FORM_URL=()=>location.origin+location.pathname.replace(/[^/]*$/,"")+"order.html";
 const itemsTotal=o=>o.items.reduce((a,i)=>a+i.qty*i.price,0);
 const orderTotal=o=>itemsTotal(o)+(o.delivery?o.delivery.fee:0); // delivery fee counts as sales
@@ -349,9 +354,10 @@ const API={
     if(f.channel==="direct"&&f.del.on){const fee=toSen(f.del.fee);if(fee==null)return fail("Enter the delivery charge, e.g. 8.00 (0 if free)");delivery={fee,address:String(f.del.address||"").trim()};}
     if(!items.length)return fail("Add at least one item");
     const channel=f.channel==="direct"?"direct":"bwa";
-    if(id){const o=DB.orders.find(x=>x.id===id);Object.assign(o,{channel,customer,phone:f.phone.trim(),date:f.date,time,notes:f.notes.trim(),items,delivery});
+    if(id){const o=DB.orders.find(x=>x.id===id);Object.assign(o,{channel,customer,phone:f.phone.trim(),date:f.date,time,notes:f.notes.trim(),items,delivery});if(channel==="direct"&&o.src!=="form"&&f.src)o.src=f.src;
       this.log("Order changed",`${o.no} ${customer} · ${RM(orderTotal(o))}`);save();return ok(o);}
     const o={id:uid(),channel,no:f.no||CH[channel].prefix+String(Date.now()).slice(-6),createdAt:Date.now(),date:f.date,time,customer,phone:f.phone.trim(),notes:f.notes.trim(),items,delivery,status:"new",paid:false,by:this.me.name};
+    if(channel==="direct"){o.src=f.src||"walkin";if(f.paidNow){o.paid=true;o.paidAt=Date.now();o.paidBy=this.me.name;}}
     DB.orders.push(o);this.log(CH[channel].label+" order created",`${o.no} ${customer} · ${RM(orderTotal(o))}`);save();return ok(o);},
   setOrderStatus(id,st){const o=DB.orders.find(x=>x.id===id);o.status=st;this.log("Order "+ST_LABEL[st].toLowerCase(),`${o.no} ${o.customer}`);save();return ok(o);},
   invoiceNo(o){if(!o.invoiceNo){DB.invSeq++;o.invoiceNo=`INV-${new Date().getFullYear()}-${String(DB.invSeq).padStart(4,"0")}`;o.invoiceAt=Date.now();this.log("Invoice issued",`${o.invoiceNo} for ${o.no} ${o.customer} · ${RM(orderTotal(o))}`);save();}return o.invoiceNo;},
@@ -712,6 +718,7 @@ const Auth={msg:"",mode:"login",staff:[],ownerExists:true,
     if(prof.role==="pending"){this.msg="This account has no access. Ask the owner to give you access.";await Sync.sb.auth.signOut();API.me=null;ui.screen="login";render();return;}
     ui.screen="app";ui.tab=API.isOwner()?"today":"orders";ui.date=today();ui.orderFilter=API.isOwner()?"day":"upcoming";
     if(location.hash==="#restock"){ui.tab="stock";ui.inv="restock";history.replaceState(null,"",location.pathname);} /* opened from the 5 PM notification */
+    if(location.hash==="#pre"){ui.tab="pre";history.replaceState(null,"",location.pathname);} /* opened from a new pre-order notification */
     Push.init();
     const had=Sync.restore();if(had)render();else{DB=emptyDB();Sync.takeSnap();Sync.lastSync=0;ui.screen="loading";render();} // fresh phone: nothing local to send
     await Sync.refresh();ui.screen="app";render();
@@ -850,6 +857,7 @@ function vendorSheet(s,err){const v=API.vendor(s.id),e=API.vEntry(ui.date,v.id),
 /* ----- ORDERS ----- */
 function ordersView(){const money=API.seesMoney(),t=today(),d=ui.date,ch=ui.orderCh,C=CH[ch];let os=DB.orders.filter(o=>o.channel===ch);const f=ui.orderFilter==="today"?"day":ui.orderFilter;
   if(f==="day")os=os.filter(o=>o.date===d);
+  const sf=ch==="direct"?(ui.srcF||"all"):"all";if(sf!=="all")os=os.filter(o=>sf==="form"?o.src==="form":sf==="walkin"?o.src==="walkin":o.src!=="form"&&o.src!=="walkin");
   if(f==="upcoming")os=os.filter(o=>o.date>=t&&o.status!=="collected"&&o.status!=="cancelled");
   if(f==="unpaid"||f==="pending")os=os.filter(o=>!custPaid(o)&&o.status!=="cancelled"&&(ch==="direct"||!o.paid));
   if(f==="done")os=os.filter(o=>o.status==="collected"||o.status==="cancelled");
@@ -865,7 +873,8 @@ function ordersView(){const money=API.seesMoney(),t=today(),d=ui.date,ch=ui.orde
   <div class="grid2" style="margin-bottom:12px"><div class="stat"><div class="l">Orders ${d===t?"today":fmtDs(d)}</div><div class="v">${tdAll.length}</div><div class="muted">${tdAll.filter(o=>o.status==="collected").length} collected · ${tdAll.filter(o=>o.status!=="collected").length} to prepare${tdNp.length?` · <b style="color:var(--red)">${tdNp.length} not paid</b>`:""}</div></div>
    <div class="stat"><div class="l">${money?"Sales (paid / confirmed)":"Packs"} ${d===t?"today":fmtDs(d)}</div><div class="v">${money?RM(tot):pk}</div>${money?`<div class="muted">${pk} packs${totNp?` · +${RM(totNp)} not paid yet`:""}</div>`:""}</div></div>
   <div class="chips">${[["day",d===t?"Today":fmtDs(d)],["upcoming","Upcoming"],["unpaid",ch==="direct"?"Not paid":C.unpaid],["done","Done"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="orderFilter" data-id="${k}">${l}</button>`).join("")}</div>
-  <div class="card list">${os.length?os.map(o=>`<button class="item" data-a="order" data-id="${o.id}"><div class="grow"><b>${esc(o.customer)}</b> <span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span>${o.status!=="cancelled"&&(o.pending||(o.channel==="direct"&&!o.paid))?` <span class="badge b-red">Not paid</span>`:money&&!o.paid&&o.status!=="cancelled"?` <span class="badge b-red">${C.unpaid}</span>`:""}${o.src==="form"?` <span class="badge b-sand">Form</span>`:""}
+  ${ch==="direct"?`<div class="chips small">${[["all","All"],["form","Online"],["walkin","Walk-in"],["other","WhatsApp / phone"]].map(([k,l])=>`<button class="chip ${sf===k?"on":""}" data-a="srcF" data-id="${k}">${l}</button>`).join("")}</div>`:""}
+  <div class="card list">${os.length?os.map(o=>`<button class="item" data-a="order" data-id="${o.id}">${o.time?`<div class="tpill">${tShort(o.time)}</div>`:""}<div class="grow"><b>${esc(o.customer)}</b> <span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span>${o.status!=="cancelled"&&(o.pending||(o.channel==="direct"&&!o.paid))?` <span class="badge b-red">Not paid</span>`:money&&!o.paid&&o.status!=="cancelled"?` <span class="badge b-red">${C.unpaid}</span>`:""} ${srcBadge(o)}
      <div class="muted">${o.no} · ${dayName(o.date)} ${fmtDs(o.date)}${o.time?" "+tShort(o.time):""}${o.date===t?" (today)":""}${o.delivery?" · Delivery":""}${o.invoiceNo?" · "+o.invoiceNo:""}</div><div class="muted">${esc(o.items.map(i=>i.qty+"× "+i.name).join(", "))}</div></div>
      ${money?`<b>${RM(orderTotal(o))}</b>`:`<span class="muted">›</span>`}</button>`).join(""):`<div class="empty">${f==="day"?`No orders on ${fmtD(d)}. Tap <b>+ New order</b> to add one for this date.`:"No orders here."}</div>`}</div>`;}
 
@@ -1054,6 +1063,8 @@ function orderForm(s,err){const f=s.form,money=API.seesMoney();
   return`<h2>${s.id?"Edit order":"New order"}</h2>${err}
   <div class="field"><label>Order through</label><div class="seg" style="margin:0">${Object.entries(CH).map(([k,c])=>`<button class="${f.channel===k?"on":""}" data-a="fCh" data-id="${k}">${c.label}</button>`).join("")}</div>
   <div class="hint">${f.channel==="bwa"?"BWA customer: you will claim this from BWA.":"Direct customer: for your own record."}</div></div>
+  ${f.channel==="direct"?(f.src==="form"?`<div class="note">Online order from the customer form.</div>`:`<div class="field"><label>How did they order?</label><div class="seg" style="margin:0">${["walkin","whatsapp","phone"].map(k=>`<button class="${(f.src||"walkin")===k?"on":""}" data-a="fSrc" data-id="${k}">${SRC[k].l}</button>`).join("")}</div></div>
+   ${s.id?"":`<div class="card" style="padding:10px 12px"><div class="switch"><div><b>Already paid</b><div class="muted">${f.paidNow?"Marked as Paid when saved.":"Saved as Not paid. Follow up later."}</div></div><button class="${f.paidNow?"on":""}" data-a="fPaidNow"></button></div></div>`}`):""}
   <div class="field"><label>Customer name</label><input id="oC" data-f="customer" value="${esc(f.customer)}" placeholder="e.g. Puan Rohana"></div>
   <div class="grid2"><div class="field"><label>Phone (optional)</label><input id="oPh" data-f="phone" inputmode="tel" value="${esc(f.phone)}"></div>
   <div class="field"><label>Date (collection / sale)</label><input id="oD" data-f="date" type="date" value="${esc(f.date)}"></div></div>
@@ -1076,7 +1087,7 @@ function formTotalText(f){if(API.seesMoney())return RM(formTotal(f));let n=0;Obj
 function orderDetail(s,err){const o=DB.orders.find(x=>x.id===s.id),money=API.seesMoney();
   const C=CH[o.channel];
   return`<h2>${esc(o.customer)}</h2><p class="muted" style="margin-top:-8px">${C.long.replace(" orders"," order")} · ${o.no} · ${o.delivery?"deliver":"collect"} ${dayName(o.date)}, ${fmtD(o.date)}${o.time?", "+esc(o.time):""}${o.phone?` · ${esc(o.phone)}`:""}</p>${err}
-  <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span><span class="badge ${PAY[payState(o)].b}">${PAY[payState(o)].l}</span>${o.src==="form"?`<span class="badge b-sand">From order form</span>`:""}${o.channel==="bwa"&&money?(o.paid?`<span class="badge b-green">Claimed</span>`:`<span class="badge b-amber">Not claimed</span>`):""}</div>
+  <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><span class="badge ${ST_BADGE[o.status]}">${ST_LABEL[o.status]}</span><span class="badge ${PAY[payState(o)].b}">${PAY[payState(o)].l}</span>${SRC[o.src]&&o.channel==="direct"?`<span class="badge ${SRC[o.src].b}">${SRC[o.src].long}</span>`:""}${o.channel==="bwa"&&money?(o.paid?`<span class="badge b-green">Claimed</span>`:`<span class="badge b-amber">Not claimed</span>`):""}</div>
   <div class="card calc">${o.items.map(i=>`<div class="r"><span>${i.qty} × ${esc(i.name)}${i.custom?` <span class="badge b-sand">Custom</span>`:""}</span>${money?`<span>${RM(i.qty*i.price)}</span>`:""}</div>`).join("")}
    ${o.delivery?`<div class="r"><span>Delivery</span><span>${o.delivery.feeTbc?`<span class="muted">to be set</span>`:RM(o.delivery.fee)}</span></div>`:""}
    ${money?`<div class="r t"><span>Total</span><span>${RM(orderTotal(o))}</span></div><div class="muted">${o.channel==="bwa"?"Full price, no BWA cut. Claim from BWA.":"Direct sale."}</div>`:""}</div>
@@ -1151,7 +1162,7 @@ const val=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
 const open=s=>{ui.sheet=s;render();};
 function failed(r){if(r.ok)return false;if(ui.sheet){ui.sheet.error=r.error;render();const b=$(".err-box");if(b)b.scrollIntoView({block:"center"});}else toast(r.error,true);return true;}
 async function copyText(t){try{await navigator.clipboard.writeText(t);toast("Copied");}catch(e){toast("Couldn't copy. Press and hold the text, then choose Copy.",true);}}
-function newForm(o){const f={channel:o?o.channel:ui.orderCh,customer:"",phone:"",date:ui.date,time:"",notes:"",qty:{},custom:[],del:{on:false,fee:"",address:""}};
+function newForm(o){const f={channel:o?o.channel:ui.orderCh,src:o?(o.src||""):"walkin",paidNow:!o,customer:"",phone:"",date:ui.date,time:"",notes:"",qty:{},custom:[],del:{on:false,fee:"",address:""}};
   if(o&&o.delivery)f.del={on:true,fee:o.delivery.feeTbc?"":s2d(o.delivery.fee),address:o.delivery.address||""};
   if(o){Object.assign(f,{customer:o.customer,phone:o.phone,date:o.date,time:o.time||"",notes:o.notes});o.items.forEach(i=>{if(i.opt)f.custom.push({name:i.name,qty:i.qty,price:i.price,opt:i.opt,menuId:i.menuId});else if(i.custom)f.custom.push({name:i.name,qty:i.qty,price:i.price});else if(i.menuId)f.qty[i.menuId]=(f.qty[i.menuId]||0)+i.qty;else{const m=DB.menu.find(x=>x.name===i.name);m?f.qty[m.id]=i.qty:f.custom.push({name:i.name,qty:i.qty,price:i.price});}});}
   return f;}
@@ -1202,6 +1213,9 @@ document.addEventListener("click",ev=>{const el=ev.target.closest("[data-a]");if
     case"orderFilter":ui.orderFilter=id;break;
     case"orderCh":ui.orderCh=id;break;
     case"fCh":s.form.channel=id;break;
+    case"srcF":ui.srcF=id;break;
+    case"fSrc":s.form.src=id;if(!s.id)s.form.paidNow=id==="walkin";break;
+    case"fPaidNow":s.form.paidNow=!s.form.paidNow;break;
     case"fDel":s.form.del.on=!s.form.del.on;break;
     case"invoice":{const o=DB.orders.find(x=>x.id===s.id);
       if(!o.invoiceNo){el.disabled=true;Sync.next("invoice").then(n=>{o.invoiceNo=`INV-${new Date().getFullYear()}-${String(n).padStart(4,"0")}`;o.invoiceAt=Date.now();API.log("Invoice issued",`${o.invoiceNo} for ${o.no} ${o.customer} · ${RM(orderTotal(o))}`);save();el.disabled=false;el.click();}).catch(()=>{el.disabled=false;toast("No connection. Please try again when you have signal.",true);});return;}const{inv,data}=invoicePdf(o);saveFile(`${inv}-${ascii(o.customer).replace(/[^A-Za-z0-9]+/g,"-")}.pdf`,data);render();return;}

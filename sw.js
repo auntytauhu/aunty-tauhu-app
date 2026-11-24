@@ -1,5 +1,5 @@
-/* Aunty Tauhu service worker: shows push notifications (daily shopping list)
-   and opens the app on the Restock list when one is tapped.
+/* Aunty Tauhu service worker: shows push notifications (new pre-orders, daily shopping list)
+   and opens the app on the right page when one is tapped.
    No caching here, so app updates always load straight away. */
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
@@ -22,7 +22,8 @@ self.addEventListener("notificationclick", (e) => {
   const url = new URL((e.notification.data && e.notification.data.url) || "./#restock", self.registration.scope).href;
   e.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    for (const w of wins) { w.postMessage({ open: "restock" }); if ("focus" in w) return w.focus(); }
+    const open = url.includes("#pre") ? "pre" : "restock";
+    for (const w of wins) { w.postMessage({ open }); if ("focus" in w) return w.focus(); }
     return self.clients.openWindow(url);
   })());
 });
