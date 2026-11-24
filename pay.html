@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pay Aunty Tauhu</title>
+<meta name="description" content="DuitNow QR and Maybank account for Aunty Tauhu Enterprise.">
+<meta property="og:title" content="Pay Aunty Tauhu (DuitNow QR)">
+<meta property="og:description" content="Scan the DuitNow QR or transfer to Maybank 5623 4860 3461 (Aunty Tauhu Enterprise).">
+<meta property="og:image" content="https://auntytauhu.github.io/aunty-tauhu-app/icons/duitnow-qr.jpg">
+<meta name="theme-color" content="#fbf8f2">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>
+:root{--navy:#15213a;--brown:#5c4130;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--green:#2e7d4f;--green-bg:#e6f4ea}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--b50);color:#0e1726;font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:460px;margin:0 auto;padding:18px 16px 40px;text-align:center}
+h1{font-size:21px;margin:6px 0 2px;color:var(--navy)}.sub{color:#6b6f78;margin:0 0 14px}
+.amt{background:#fff;border:1px solid var(--b200);border-radius:16px;padding:12px;margin:0 0 14px}.amt small{display:block;color:#6b6f78}.amt b{font-size:28px;color:var(--navy)}
+.qr{width:100%;max-width:360px;border-radius:14px;box-shadow:0 6px 20px rgba(21,33,58,.12);display:block;margin:0 auto}
+.acct{background:#fff;border:1px solid var(--b200);border-radius:16px;padding:14px;margin:16px 0;text-align:left}
+.acct small{display:block;color:var(--brown);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+.row{display:flex;align-items:center;gap:10px;justify-content:space-between}.num{font-size:22px;font-weight:800;letter-spacing:.5px;color:var(--navy)}
+.btn{border:0;border-radius:12px;background:var(--navy);color:#fff;font:inherit;font-weight:700;padding:10px 14px}
+.btn.big{display:block;width:100%;padding:14px;font-size:16.5px;margin-top:10px;text-decoration:none;background:var(--brown)}
+.note{background:var(--b100);border-radius:12px;padding:10px 12px;color:var(--brown);font-size:14.5px;text-align:left}
+.ok{color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img src="icons/icon-192.png" alt="Aunty Tauhu" width="84" height="84">
+  <h1>Pay Aunty Tauhu</h1>
+  <p class="sub" id="ord">Scan the DuitNow QR with any bank or e-wallet app.</p>
+  <div class="amt" id="amt" hidden><small>Total to pay</small><b id="amtV"></b></div>
+  <img class="qr" src="icons/duitnow-qr.jpg" alt="DuitNow QR for Aunty Tauhu Enterprise">
+  <a class="btn big" href="icons/duitnow-qr.jpg" download="Aunty-Tauhu-DuitNow-QR.jpg">Save QR image</a>
+  <div class="acct">
+    <small>Or bank transfer · Maybank</small>
+    <div class="row"><div><div class="num">5623 4860 3461</div><div>Aunty Tauhu Enterprise</div></div><button class="btn" id="cp">Copy</button></div>
+  </div>
+  <div class="note">After paying, please send the receipt (screenshot) on WhatsApp. Thank you!</div>
+</div>
+<script>
+"use strict";
+const q=new URLSearchParams(location.search),o=(q.get("o")||"").replace(/[^A-Za-z0-9-]/g,"").slice(0,20),a=(q.get("a")||"").replace(/[^0-9.]/g,"").slice(0,10);
+if(o)document.getElementById("ord").textContent="Order "+o+" · scan the DuitNow QR with any bank or e-wallet app.";
+if(a&&!isNaN(+a)){document.getElementById("amt").hidden=false;document.getElementById("amtV").textContent="RM"+(+a).toFixed(2);}
+document.getElementById("cp").onclick=async e=>{const t="562348603461";try{await navigator.clipboard.writeText(t);}catch(_){const x=document.createElement("textarea");x.value=t;document.body.appendChild(x);x.select();document.execCommand("copy");x.remove();}
+  e.target.textContent="Copied ✓";e.target.classList.add("ok");setTimeout(()=>{e.target.textContent="Copy";e.target.classList.remove("ok");},1800);};
+</script>
+</body>
+</html>

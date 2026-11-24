@@ -10,10 +10,20 @@ const preList=()=>DB.orders.filter(o=>o.src==="form"&&o.status!=="cancelled");
 const preNeedsFee=o=>!!(o.delivery&&o.delivery.feeTbc);
 const preTodo=()=>preList().filter(o=>!custPaid(o));
 const preCount=()=>preTodo().length;
+const PAY_URL=o=>location.origin+location.pathname.replace(/[^/]*$/,"")+`pay.html?o=${encodeURIComponent(o.no)}&a=${(orderTotal(o)/100).toFixed(2)}`;
 function preMsg(o){const B=DB.business;
   return[`Hi ${o.customer}, thank you for ordering with Aunty Tauhu!`,``,`Order ${o.no}`,`${dayName(o.date)}, ${fmtD(o.date)}${o.time?", "+o.time:""}`,o.delivery?`Delivery to: ${o.delivery.address}`:`Self pick up`,``,
-    ...o.items.map(i=>`${i.qty} x ${i.name}: ${RM(i.qty*i.price)}`),...(o.delivery?[`Delivery: ${RM(o.delivery.fee)}`]:[]),``,`*Total to pay: ${RM(orderTotal(o))}*`,
-    ...(B.bank?[``,`Payment: ${B.bank}`]:[]),``,`Please send the payment receipt here. Thank you!`].join("\n");}
+    ...o.items.map(i=>`${i.qty} x ${i.name}: ${RM(i.qty*i.price)}`),...(o.delivery?[`Delivery: ${RM(o.delivery.fee)}`]:[]),``,`*Total to pay: ${RM(orderTotal(o))}*`,``,`*How to pay*`,
+    `DuitNow QR: ${PAY_URL(o)}`,...(B.bank?[`Bank transfer: ${B.bank}`]:[]),``,`Please send the payment receipt here. Thank you!`].join("\n");}
+/* share the total + the DuitNow QR picture (phone share sheet → WhatsApp → customer's chat) */
+let QR_FILE=null;
+async function preShareQr(o){
+  try{if(!QR_FILE){const r=await fetch("icons/duitnow-qr.jpg");QR_FILE=new File([await r.blob()],"Aunty-Tauhu-DuitNow-QR.jpg",{type:"image/jpeg"});}
+    const data={files:[QR_FILE],text:preMsg(o)};
+    if(!navigator.canShare||!navigator.canShare(data)){toast("This phone can't share pictures from here. Use 'Send total on WhatsApp' (it has the QR link).",true);return false;}
+    try{await navigator.clipboard.writeText(preMsg(o));}catch(_){}
+    toast("Message copied too. If WhatsApp shows only the picture, paste the message.");await navigator.share(data);return true;}
+  catch(e){if(e&&e.name==="AbortError")return false;console.error(e);toast("Couldn't share. Use 'Send total on WhatsApp'.",true);return false;}}
 function preCard(o){const own=API.isOwner(),need=preNeedsFee(o),paid=custPaid(o),items=itemsTotal(o);
   return`<div class="card pcard" data-name="${esc((o.customer+" "+o.no+" "+(o.phone||"")).toLowerCase())}">
    <button class="ph" data-a="order" data-id="${o.id}">${o.time?`<div class="tpill">${tShort(o.time)}</div>`:""}<div class="grow"><b>${esc(o.customer)}</b> <span class="muted">${o.no}</span><div class="muted">${dayName(o.date)} ${fmtDs(o.date)}${o.time?" · "+esc(o.time):""} · ${o.delivery?"Delivery":"Pick up"}</div></div>
@@ -25,6 +35,7 @@ function preCard(o){const own=API.isOwner(),need=preNeedsFee(o),paid=custPaid(o)
     ${o.delivery?`<div class="r"><span>Delivery</span>${own&&!paid?`<span class="pfee"><span>RM</span><input id="pfee_${o.id}" inputmode="decimal" placeholder="e.g. 25" value="${need?"":s2d(o.delivery.fee)}"><button class="btn sm" data-a="preFee" data-id="${o.id}">Save</button></span>`:`<span>${need?`<span class="muted">waiting for owner</span>`:RM(o.delivery.fee)}</span>`}</div>`:""}
     <div class="r t"><span>Total to pay</span><span>${need?"–":RM(orderTotal(o))}</span></div></div>
    ${paid?"":`<button class="btn wa block" data-a="preSend" data-id="${o.id}" ${need||!o.phone?"disabled":""}>${need?"Set the delivery charge first":"Send total on WhatsApp"}</button>
+    ${need?"":`<button class="btn sm ghost block" style="margin-top:6px" data-a="preQr" data-id="${o.id}">Send with QR picture</button>`}
     ${o.sentAt?`<div class="muted" style="text-align:center;margin-top:4px">Total sent ${fmtT(o.sentAt)} by ${esc(o.sentBy||"")}${o.sentTotal!==orderTotal(o)?` · <b style="color:var(--red)">total changed since, send again</b>`:""}</div>`:""}`}
    <div class="seg" style="margin:10px 0 0">${[["no","Not paid"],["yes","Paid"]].map(([k,l])=>`<button class="${(k==="yes")===paid?"on":""}" data-a="prePaid" data-id="${o.id}:${k}" ${need&&k==="yes"?"disabled":""}>${l}</button>`).join("")}</div>
    ${paid&&o.paidAt?`<div class="muted" style="text-align:center;margin-top:4px">Paid ${fmtT(o.paidAt)}${o.paidBy?" · "+esc(o.paidBy):""}. You can proceed.</div>`:""}</div>`;}
@@ -52,6 +63,7 @@ function preClick(a,id,el){const o=id&&DB.orders.find(x=>x.id===String(id).split
     case"preFee":{const r=API.setDeliveryFee(o.id,val("pfee_"+o.id));if(r.ok)toast(`Delivery ${RM(o.delivery.fee)} saved · total ${RM(orderTotal(o))}`);else toast(r.error,true);return;}
     case"preSend":{if(preNeedsFee(o))return false;o.sentAt=Date.now();o.sentBy=API.me.name;o.sentTotal=orderTotal(o);API.log("Total sent on WhatsApp",`${o.no} ${o.customer} · ${RM(o.sentTotal)}`);save();
       window.open(`https://wa.me/${waNum(o.phone)}?text=${encodeURIComponent(preMsg(o))}`,"_blank");return;}
+    case"preQr":{if(preNeedsFee(o))return false;preShareQr(o).then(ok=>{if(ok){o.sentAt=Date.now();o.sentBy=API.me.name;o.sentTotal=orderTotal(o);API.log("Total + QR sent",`${o.no} ${o.customer} · ${RM(o.sentTotal)}`);save();render();}});return false;}
     case"prePaid":{const yes=id.endsWith(":yes");const r=API.setPay(o.id,yes?"paid":"pending");if(!r.ok){toast(r.error,true);return false;}if(yes)o.paidBy=API.me.name;else delete o.paidBy;save();toast(yes?`${o.no} marked as paid`:`${o.no} marked as not paid`);return;}
   }
   return undefined;}
