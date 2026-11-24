@@ -198,6 +198,10 @@ const monday=s=>{const d=new Date(s+"T00:00:00");return addDays(s,-((d.getDay()+
 /* ---------- STORE ---------- */
 const uid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 const MENU_CATS=["Tauhu","Popia","Add-on"];
+/* menu order: by category, then Small, Medium, Big, Frozen, then the rest (combos), then price */
+const sizeRank=n=>/small|kecil/i.test(n)?0:/medium|sederhana/i.test(n)?1:/big|large|besar/i.test(n)?2:/frozen|beku/i.test(n)?3:4;
+const catRank=c=>{const i=MENU_CATS.indexOf(c);return i<0?5:i;};
+const menuSorted=()=>[...DB.menu].sort((a,b)=>catRank(a.cat)-catRank(b.cat)||sizeRank(a.name)-sizeRank(b.name)||a.price-b.price||a.name.localeCompare(b.name));
 /* app collection -> Supabase table (each table: id text, data jsonb, updated_at) */
 const COLL={booths:"booths",entries:"booth_entries",vendors:"vendors",ventries:"vendor_entries",menu:"menu",orders:"orders",...INV_COLL,audit:"audit"}; // activity log last: a log problem must never hold back real data
 const KV=["settings","business"];
@@ -335,7 +339,7 @@ const API={
     const customer=String(f.customer||"").trim();if(customer.length<2)return fail("Enter the customer's name");
     if(!/^\d{4}-\d{2}-\d{2}$/.test(f.date||""))return fail("Choose the collection date");
     const items=[];
-    DB.menu.forEach(m=>{const q=f.qty[m.id]||0;if(q>0)items.push({menuId:m.id,name:m.name,qty:q,price:m.price});});
+    menuSorted().forEach(m=>{const q=f.qty[m.id]||0;if(q>0)items.push({menuId:m.id,name:m.name,qty:q,price:m.price});});
     // keep prices of items already on an existing order
     if(id){const old=DB.orders.find(o=>o.id===id);items.forEach(i=>{const was=old.items.find(x=>x.menuId===i.menuId);if(was)i.price=was.price;});}
     f.custom.forEach(c=>items.push(c.opt?{menuId:c.menuId,name:c.name,qty:c.qty,price:c.price,opt:c.opt}:{name:c.name,qty:c.qty,price:c.price,custom:true}));
@@ -1003,7 +1007,7 @@ function settingsView(){const s=DB.settings;
   <div class="card switch"><div><b>Kitchen staff can see order prices</b><div class="muted">Kitchen staff see customer orders and stock (no purchase prices). When off, they see items and pack counts, not prices.</div></div><button class="${s.kitchenSeesMoney?"on":""}" data-a="toggleMoney" aria-label="Toggle"></button></div>
   <div class="note">Booths and vendors are now managed on their own pages: tap a booth or vendor, then <b>Edit</b>.</div>
   <div class="row between"><h3>Customer order menu</h3><button class="btn sm sec" data-a="menuEdit" data-id="">+ Add item</button></div>
-  <div class="card list">${DB.menu.map(m=>`<button class="item" data-a="menuEdit" data-id="${m.id}"><div class="grow"><b>${esc(m.name)}</b> ${m.active?"":`<span class="badge b-navy">Hidden</span>`}<div class="muted">${esc(m.cat)}</div></div><b>${RM(m.price)}</b></button>`).join("")}</div>
+  <div class="card list">${menuSorted().map(m=>`<button class="item" data-a="menuEdit" data-id="${m.id}"><div class="grow"><b>${esc(m.name)}</b> ${m.active?"":`<span class="badge b-navy">Hidden</span>`}<div class="muted">${esc(m.cat)}</div></div><b>${RM(m.price)}</b></button>`).join("")}</div>
   <h3>Activity log</h3><div class="card list">${DB.audit.slice(0,30).map(a=>`<div class="item"><div class="grow"><b>${esc(a.action)}</b><div class="muted">${esc(a.detail)}</div><div class="muted">${esc(a.by)} · ${new Date(a.at).toLocaleString("en-GB")}</div></div></div>`).join("")}</div>
   <h3>Data</h3><div class="card">${syncLine()}<button class="btn ghost block" style="margin-top:10px;color:var(--red)" data-a="freshSheet">Delete all records…</button><p class="muted">Deletes booth, vendor and order records for everyone. Keeps booths, vendors, menu, prices and business details.</p></div>`;}
 function syncLine(){return`<div class="row between"><div><b>${Sync.online?"All changes synced":"Offline"}</b><div class="muted">${Sync.lastSync?"Last synced "+new Date(Sync.lastSync).toLocaleString("en-GB"):"Not synced yet"}</div></div><button class="btn sm sec" data-a="refresh">Sync now</button></div>`;}
@@ -1053,7 +1057,7 @@ function orderForm(s,err){const f=s.form,money=API.seesMoney();
   <div class="grid2"><div class="field"><label>Phone (optional)</label><input id="oPh" data-f="phone" inputmode="tel" value="${esc(f.phone)}"></div>
   <div class="field"><label>Date (collection / sale)</label><input id="oD" data-f="date" type="date" value="${esc(f.date)}"></div></div>
   <div class="field"><label>Time (optional)</label><select id="oT" data-f="time"><option value="">Any time</option>${TIME_SLOTS.concat(f.time&&!TIME_SLOTS.includes(f.time)?[f.time]:[]).map(t=>`<option ${f.time===t?"selected":""}>${t}</option>`).join("")}</select></div>
-  ${MENU_CATS.map(cat=>{const items=DB.menu.filter(m=>m.cat===cat&&(m.active||f.qty[m.id]));if(!items.length)return"";
+  ${MENU_CATS.map(cat=>{const items=menuSorted().filter(m=>m.cat===cat&&(m.active||f.qty[m.id]));if(!items.length)return"";
     return`<h3>${cat}</h3>${items.map(m=>stepper("q_"+m.id,esc(m.name),money?RM(m.price):"",f.qty[m.id]||0,f.qty[m.id]?"has":"")).join("")}`;}).join("")}
   <h3>Custom item</h3><p class="muted" style="margin-top:-4px">For items not on the menu, e.g. mini packs. Set your own price per pack.</p>
   ${f.custom.map((c,i)=>`<div class="promo"><div class="grow"><b>${c.qty} × ${esc(c.name)}</b>${money?` <span class="muted">@ ${RM(c.price)} = ${RM(c.qty*c.price)}</span>`:""}</div><button class="x" data-a="rmCustom" data-id="${i}">×</button></div>`).join("")}

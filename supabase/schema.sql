@@ -327,7 +327,12 @@ $c$);
 create or replace function public.order_form_info()
 returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object(
-    'menu', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'name', m.data->>'name', 'cat', m.data->>'cat', 'price', (m.data->>'price')::int) order by m.data->>'cat' desc, (m.data->>'price')::int, m.id)
+    'menu', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'name', m.data->>'name', 'cat', m.data->>'cat', 'price', (m.data->>'price')::int)
+              order by
+                case m.data->>'cat' when 'Tauhu' then 0 when 'Popia' then 1 when 'Add-on' then 2 else 5 end,
+                case when m.data->>'name' ~* '(small|kecil)' then 0 when m.data->>'name' ~* '(medium|sederhana)' then 1
+                     when m.data->>'name' ~* '(big|large|besar)' then 2 when m.data->>'name' ~* '(frozen|beku)' then 3 else 4 end,
+                (m.data->>'price')::int, m.data->>'name')
               from public.menu m where coalesce((m.data->>'active')::boolean, true)), '[]'::jsonb),
     'shop', (select jsonb_build_object('name', k.data->>'name', 'phone', k.data->>'phone') from public.kv k where k.id = 'business'),
     'today', to_char((now() at time zone 'Asia/Kuala_Lumpur')::date, 'YYYY-MM-DD'),
