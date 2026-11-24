@@ -345,6 +345,8 @@ declare
   v_addr text := btrim(coalesce(p->>'address', ''));
   v_notes text := btrim(coalesce(p->>'notes', ''));
   v_del boolean := coalesce((p->>'delivery')::boolean, false);
+  v_time text := btrim(coalesce(p->>'time', ''));
+  v_opt text; v_cat text;
   v_date date; v_items jsonb := '[]'::jsonb; v_total int := 0;
   it jsonb; m record; q int; n int; v_no text; v_id text;
 begin
@@ -352,16 +354,23 @@ begin
   if char_length(v_digits) < 9 or char_length(v_digits) > 15 or char_length(v_phone) > 20 then raise exception 'phone' using errcode = 'P0001'; end if;
   if v_del and (char_length(v_addr) < 10 or char_length(v_addr) > 300) then raise exception 'address' using errcode = 'P0001'; end if;
   if char_length(v_notes) > 300 then raise exception 'notes' using errcode = 'P0001'; end if;
+  -- time slots: 9:00 AM to 6:00 PM, every hour
+  if v_time not in ('9:00 AM','10:00 AM','11:00 AM','12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM','6:00 PM') then raise exception 'time' using errcode = 'P0001'; end if;
   begin v_date := (p->>'date')::date; exception when others then raise exception 'date' using errcode = 'P0001'; end;
   if v_date is null or v_date < v_today or v_date > v_today + 180 then raise exception 'date' using errcode = 'P0001'; end if;
-  if jsonb_typeof(p->'items') <> 'array' or jsonb_array_length(p->'items') = 0 or jsonb_array_length(p->'items') > 20 then raise exception 'items' using errcode = 'P0001'; end if;
+  if jsonb_typeof(p->'items') <> 'array' or jsonb_array_length(p->'items') = 0 or jsonb_array_length(p->'items') > 40 then raise exception 'items' using errcode = 'P0001'; end if;
   for it in select * from jsonb_array_elements(p->'items') loop
-    select id, data->>'name' as name, (data->>'price')::int as price into m from public.menu where id = it->>'id' and coalesce((data->>'active')::boolean, true);
+    select id, data->>'name' as name, (data->>'price')::int as price, data->>'cat' as cat into m from public.menu where id = it->>'id' and coalesce((data->>'active')::boolean, true);
     if not found then raise exception 'items' using errcode = 'P0001'; end if;
     begin q := (it->>'qty')::int; exception when others then raise exception 'items' using errcode = 'P0001'; end;
     if q is null or q < 1 or q > 200 then raise exception 'items' using errcode = 'P0001'; end if;
-    if v_items @> jsonb_build_array(jsonb_build_object('menuId', m.id)) then raise exception 'items' using errcode = 'P0001'; end if;
-    v_items := v_items || jsonb_build_array(jsonb_build_object('menuId', m.id, 'name', m.name, 'qty', q, 'price', m.price));
+    -- filling: Daging / Ayam / Veggie for every item except add-ons
+    v_opt := btrim(coalesce(it->>'opt', ''));
+    if lower(coalesce(m.cat, '')) like 'add%' then
+      if v_opt <> '' then raise exception 'items' using errcode = 'P0001'; end if;
+    elsif v_opt not in ('Daging','Ayam','Veggie') then raise exception 'filling' using errcode = 'P0001'; end if;
+    if v_items @> jsonb_build_array(jsonb_build_object('menuId', m.id, 'opt', v_opt)) then raise exception 'items' using errcode = 'P0001'; end if;
+    v_items := v_items || jsonb_build_array(jsonb_build_object('menuId', m.id, 'name', m.name || case when v_opt <> '' then ' - ' || v_opt else '' end, 'qty', q, 'price', m.price, 'opt', v_opt));
     v_total := v_total + q * m.price;
   end loop;
   -- simple limits against spam
@@ -374,10 +383,10 @@ begin
   v_id := 'web' || substr(md5(random()::text || clock_timestamp()::text), 1, 12);
   insert into public.orders (id, data, updated_at) values (v_id, jsonb_build_object(
     'id', v_id, 'channel', 'direct', 'no', v_no, 'createdAt', (extract(epoch from now()) * 1000)::bigint,
-    'date', to_char(v_date, 'YYYY-MM-DD'), 'customer', v_name, 'phone', v_phone, 'notes', v_notes, 'items', v_items,
+    'date', to_char(v_date, 'YYYY-MM-DD'), 'time', v_time, 'customer', v_name, 'phone', v_phone, 'notes', v_notes, 'items', v_items,
     'delivery', case when v_del then jsonb_build_object('fee', 0, 'address', v_addr, 'feeTbc', true) else null end,
     'status', 'new', 'paid', false, 'pending', true, 'src', 'form', 'by', 'Customer form'), now());
-  return jsonb_build_object('no', v_no, 'total', v_total, 'date', to_char(v_date, 'YYYY-MM-DD'), 'delivery', v_del);
+  return jsonb_build_object('no', v_no, 'total', v_total, 'date', to_char(v_date, 'YYYY-MM-DD'), 'time', v_time, 'delivery', v_del);
 end $$;
 revoke all on function public.submit_order(jsonb) from public;
 grant execute on function public.submit_order(jsonb) to anon, authenticated;

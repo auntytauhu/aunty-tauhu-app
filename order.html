@@ -45,7 +45,16 @@ h2{font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--brown
 .btn:disabled{opacity:.5}.btn.block{width:100%;display:block;text-align:center;text-decoration:none}.btn.wa{background:#1f8f4e}.btn.sec{background:var(--b100);color:var(--navy)}
 .ok{text-align:center;padding:10px 0}.ok .tick{width:64px;height:64px;border-radius:50%;background:var(--green-bg);color:var(--green);font-size:34px;line-height:64px;margin:8px auto}
 .sum{text-align:left;margin:14px 0}.sum .r{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--b200)}.sum .r:last-child{border:0}
-.muted{color:#6b6f78}.loading{text-align:center;color:#6b6f78;padding:40px 0}
+.muted{color:#6b6f78}
+.it{flex-wrap:wrap}.it .pick{border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:12px;padding:9px 14px;font:inherit;font-weight:800;font-size:14.5px}
+.it .pick.on{background:var(--navy);color:#fff}.it .chosen{display:block;color:var(--green);font-weight:700;font-size:13px;margin-top:2px}
+.opts{flex-basis:100%;background:var(--b100);border-radius:12px;padding:4px 10px;margin-top:2px}
+.opt{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--b200)}.opt:last-child{border:0}.opt b{font-size:15px}
+.opts .step{background:#fff}.opts .step button{background:var(--b100)}
+select{width:100%;border:1px solid var(--b300);border-radius:12px;padding:12px;font:inherit;font-size:16px;background:#fff;color:#0e1726;-webkit-appearance:none;appearance:none;
+ background-image:linear-gradient(45deg,transparent 50%,#5c4130 50%),linear-gradient(135deg,#5c4130 50%,transparent 50%);background-position:calc(100% - 20px) 52%,calc(100% - 14px) 52%;background-size:6px 6px;background-repeat:no-repeat}
+.slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.slots button{border:1px solid var(--b300);background:#fff;border-radius:10px;padding:9px 0;font:inherit;font-weight:700;font-size:14px;color:var(--navy)}
+.slots button.on{background:var(--navy);color:#fff;border-color:var(--navy)}.loading{text-align:center;color:#6b6f78;padding:40px 0}
 </style>
 </head>
 <body>
@@ -59,10 +68,15 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const RM=sen=>"RM"+(sen/100).toFixed(2);
 const addDays=(s,n)=>{const d=new Date(s+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);};
 const fmtD=s=>new Date(s+"T00:00:00Z").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric",timeZone:"UTC"});
-const S={menu:[],shop:{},today:"",qty:{},del:false,date:"",name:"",phone:"",address:"",notes:"",err:"",busy:false,done:null};
+const OPTS=["Daging","Ayam","Veggie"],SLOTS=["9:00 AM","10:00 AM","11:00 AM","12:00 PM","1:00 PM","2:00 PM","3:00 PM","4:00 PM","5:00 PM","6:00 PM"];
+const short=t=>t.replace(":00","").replace(" AM","am").replace(" PM","pm");
+const isAdd=m=>/^add/i.test(m.cat||"");
+const S={menu:[],shop:{},today:"",qty:{},open:{},del:false,date:"",time:"",name:"",phone:"",address:"",notes:"",err:"",busy:false,done:null};
 const ERR={name:"Please enter your name.",phone:"Please enter a phone number we can WhatsApp (e.g. 012-345 6789).",address:"Please enter the full delivery address.",notes:"Remarks are too long (max 300 letters).",
-  date:"Please choose a date from today onwards.",items:"Please choose at least one item.",too_many:"You have sent many orders today. Please WhatsApp us instead.",busy:"We are getting many orders right now. Please try again in a few minutes or WhatsApp us."};
-const total=()=>S.menu.reduce((a,m)=>a+(S.qty[m.id]||0)*m.price,0),count=()=>Object.values(S.qty).reduce((a,b)=>a+b,0);
+  date:"Please choose a date from today onwards.",time:"Please choose a time.",items:"Please choose at least one item.",filling:"Please choose Daging, Ayam or Veggie for each item.",too_many:"You have sent many orders today. Please WhatsApp us instead.",busy:"We are getting many orders right now. Please try again in a few minutes or WhatsApp us."};
+const mOf=k=>S.menu.find(m=>m.id===k.split("|")[0]),qOf=id=>Object.entries(S.qty).filter(([k])=>k.split("|")[0]===id).reduce((a,[,q])=>a+q,0);
+const total=()=>Object.entries(S.qty).reduce((a,[k,q])=>a+q*(mOf(k)?mOf(k).price:0),0),count=()=>Object.values(S.qty).reduce((a,b)=>a+b,0);
+const lines=()=>S.menu.flatMap(m=>(isAdd(m)?[""]:OPTS).filter(o=>S.qty[m.id+"|"+o]).map(o=>({m,opt:o,qty:S.qty[m.id+"|"+o],name:m.name+(o?" - "+o:"")})));
 const waLink=(txt)=>{let p=String(S.shop.phone||"").replace(/\D/g,"");if(p.startsWith("0"))p="6"+p;return`https://wa.me/${p}?text=${encodeURIComponent(txt)}`;};
 
 async function load(){
@@ -72,28 +86,37 @@ async function load(){
 
 function form(){
   const cats=[...new Set(S.menu.map(m=>m.cat))];
-  return`<header><img src="icons/icon-192.png" alt="Aunty Tauhu"><h1>Order form</h1><p class="sub">Choose your order and send it. We will WhatsApp you to confirm.</p></header>
-  ${cats.map(c=>`<h2>${esc(c)}</h2><div class="card">${S.menu.filter(m=>m.cat===c).map(m=>{const q=S.qty[m.id]||0;return`<div class="it ${q?"has":""}"><div class="n"><b>${esc(m.name)}</b><span>${RM(m.price)}</span></div>
-    <div class="step"><button type="button" data-a="dec" data-id="${m.id}" ${q?"":"disabled"} aria-label="Less">−</button><input inputmode="numeric" pattern="[0-9]*" data-q="${m.id}" value="${q||""}" placeholder="0" aria-label="Quantity"><button type="button" data-a="inc" data-id="${m.id}" aria-label="More">+</button></div></div>`;}).join("")}</div>`).join("")}
-  <h2>When</h2><div class="box"><div class="field" style="margin:0"><label for="fDate">Date you want it</label><input type="date" id="fDate" min="${S.today}" max="${addDays(S.today,180)}" value="${S.date}"></div></div>
+  return`<header><img src="icons/icon-192.png" alt="Aunty Tauhu"><h1>Order form</h1><p class="sub">Choose your order, then send it to us on WhatsApp.</p></header>
+  ${cats.map(c=>`<h2>${esc(c)}</h2><div class="card">${S.menu.filter(m=>m.cat===c).map(item).join("")}</div>`).join("")}
+  <h2>When</h2><div class="box"><div class="field"><label for="fDate">Date</label><input type="date" id="fDate" min="${S.today}" max="${addDays(S.today,180)}" value="${S.date}"></div>
+    <div class="field" style="margin:0"><label>Time</label><div class="slots">${SLOTS.map(t=>`<button type="button" class="${S.time===t?"on":""}" data-a="time" data-id="${t}">${short(t)}</button>`).join("")}</div></div></div>
   <h2>Pick up or delivery</h2><div class="box"><div class="seg"><button type="button" class="${S.del?"":"on"}" data-a="del" data-id="0">Self pick up</button><button type="button" class="${S.del?"on":""}" data-a="del" data-id="1">Delivery</button></div>
-    ${S.del?`<div class="field"><label for="fAddr">Delivery address</label><textarea id="fAddr" maxlength="300" placeholder="House no, street, area, postcode, city">${esc(S.address)}</textarea></div><div class="note" style="margin:0">The delivery charge depends on the distance. We will tell you the charge on WhatsApp.</div>`:`<div class="note" style="margin:0">We will WhatsApp you the pick up place and time.</div>`}</div>
+    ${S.del?`<div class="field"><label for="fAddr">Delivery address</label><textarea id="fAddr" maxlength="300" placeholder="House no, street, area, postcode, city">${esc(S.address)}</textarea></div><div class="note" style="margin:0">The delivery charge depends on the distance. We will reply on WhatsApp with the charge and the total to pay.</div>`:`<div class="note" style="margin:0">We will reply on WhatsApp with the pick up place.</div>`}</div>
   <h2>Your details</h2><div class="box">
     <div class="field"><label for="fName">Name</label><input id="fName" maxlength="60" autocomplete="name" autocapitalize="words" value="${esc(S.name)}"></div>
     <div class="field"><label for="fPhone">Phone (WhatsApp)</label><input id="fPhone" type="tel" maxlength="20" autocomplete="tel" placeholder="012-345 6789" value="${esc(S.phone)}"></div>
     <div class="field" style="margin:0"><label for="fNotes">Remarks (optional)</label><textarea id="fNotes" maxlength="300" placeholder="e.g. less spicy, extra sauce, call when arrive">${esc(S.notes)}</textarea></div></div>
   ${S.err?`<div class="err" id="err">${esc(S.err)}</div>`:""}
-  <p class="muted" style="font-size:13px;margin-top:14px">Payment is not taken here. We will confirm your order and send payment details on WhatsApp.</p>
-  <div class="bar"><div class="in"><div class="t"><small>${count()} item${count()===1?"":"s"}${S.del?" + delivery":""}</small><b id="tot">${RM(total())}</b></div><button class="btn" data-a="send" ${S.busy?"disabled":""}>${S.busy?"Sending…":"Send order"}</button></div></div>`;}
+  <div class="note" style="margin-top:14px"><b>How it works:</b> tap <b>Send via WhatsApp</b>. WhatsApp opens with your full order. Just press send. We will reply with the total to pay${S.del?" (including delivery)":""}.</div>
+  <div class="bar"><div class="in"><div class="t"><small>${count()} item${count()===1?"":"s"}${S.del?" + delivery":""}</small><b id="tot">${RM(total())}</b></div><button class="btn wa" data-a="send" ${S.busy?"disabled":""}>${S.busy?"Sending…":"Send via WhatsApp"}</button></div></div>`;}
+function item(m){const q=qOf(m.id),add=isAdd(m),open=S.open[m.id]||q>0;
+  if(add){const k=m.id+"|";return`<div class="it ${q?"has":""}"><div class="n"><b>${esc(m.name)}</b><span>${RM(m.price)}</span></div>${stepper(k)}</div>`;}
+  const ch=OPTS.filter(o=>S.qty[m.id+"|"+o]).map(o=>`${S.qty[m.id+"|"+o]} ${o}`).join(" · ");
+  return`<div class="it ${q?"has":""}"><div class="n"><b>${esc(m.name)}</b><span>${RM(m.price)}</span>${ch?`<span class="chosen">${ch}</span>`:""}</div>
+    ${open?"":`<button type="button" class="pick" data-a="open" data-id="${m.id}">Add</button>`}
+    ${open?`<div class="opts">${OPTS.map(o=>`<div class="opt"><b>${o}</b>${stepper(m.id+"|"+o)}</div>`).join("")}</div>`:""}</div>`;}
+function stepper(k){const q=S.qty[k]||0;return`<div class="step"><button type="button" data-a="dec" data-id="${k}" ${q?"":"disabled"} aria-label="Less">−</button><input inputmode="numeric" pattern="[0-9]*" data-q="${k}" value="${q||""}" placeholder="0" aria-label="Quantity"><button type="button" data-a="inc" data-id="${k}" aria-label="More">+</button></div>`;}
+function waText(d){return[`Hi Aunty Tauhu! I would like to order:`,``,`Order no: ${d.no}`,`Name: ${S.name.trim()}`,`Phone: ${S.phone.trim()}`,`Date: ${fmtD(d.date)}`,`Time: ${d.time}`,
+  d.delivery?`Delivery address: ${S.address.trim()}`:`Self pick up`,``,`Order:`,...lines().map(l=>`- ${l.qty} x ${l.name} (${RM(l.qty*l.m.price)})`),``,`Total: ${RM(d.total)}${d.delivery?" + delivery charge":""}`,
+  ...(S.notes.trim()?[``,`Remarks: ${S.notes.trim()}`]:[])].join("\n");}
 
-function done(){const d=S.done,items=S.menu.filter(m=>S.qty[m.id]);
-  const msg=`Hi Aunty Tauhu, I just sent order ${d.no}.\nName: ${S.name}\nDate: ${fmtD(d.date)} (${d.delivery?"delivery":"pick up"})\n${items.map(m=>`${S.qty[m.id]} x ${m.name}`).join("\n")}\nTotal: ${RM(d.total)}${d.delivery?" + delivery":""}`;
-  return`<header><img src="icons/icon-192.png" alt="Aunty Tauhu"></header><div class="ok"><div class="tick">✓</div><h1>Order received</h1><p class="sub">Your order number is <b>${esc(d.no)}</b></p></div>
-  <div class="box sum">${items.map(m=>`<div class="r"><span>${S.qty[m.id]} × ${esc(m.name)}</span><span>${RM(S.qty[m.id]*m.price)}</span></div>`).join("")}
+function done(){const d=S.done;
+  return`<header><img src="icons/icon-192.png" alt="Aunty Tauhu"></header><div class="ok"><div class="tick">✓</div><h1>Almost done!</h1><p class="sub">Order <b>${esc(d.no)}</b> is saved. Please <b>send it to us on WhatsApp</b> to confirm.</p></div>
+  ${S.shop.phone?`<a class="btn wa block" id="waBtn" href="${waLink(waText(d))}" rel="noopener">Send order on WhatsApp</a>`:""}
+  <div class="box sum">${lines().map(l=>`<div class="r"><span>${l.qty} × ${esc(l.name)}</span><span>${RM(l.qty*l.m.price)}</span></div>`).join("")}
    ${d.delivery?`<div class="r"><span>Delivery</span><span class="muted">we will tell you</span></div>`:""}<div class="r"><b>Total</b><b>${RM(d.total)}${d.delivery?" + delivery":""}</b></div>
-   <div class="r"><span>${d.delivery?"Delivery":"Pick up"}</span><span>${fmtD(d.date)}</span></div></div>
-  <div class="note">Your order is <b>pending</b>. We will WhatsApp you at <b>${esc(S.phone)}</b> to confirm it and send payment details.</div>
-  ${S.shop.phone?`<a class="btn wa block" href="${waLink(msg)}" target="_blank" rel="noopener">WhatsApp us about this order</a>`:""}
+   <div class="r"><span>${d.delivery?"Delivery":"Pick up"}</span><span>${fmtD(d.date)}, ${esc(d.time)}</span></div></div>
+  <div class="note">After you send the WhatsApp message, we will reply with the total to pay${d.delivery?" (including delivery)":""}.</div>
   <button class="btn sec block" style="margin-top:10px" data-a="again">Make another order</button>`;}
 
 function render(){app.innerHTML=S.done?done():form();}
@@ -103,18 +126,21 @@ function setQty(id,n){n=Math.max(0,Math.min(200,n|0));if(n)S.qty[id]=n;else dele
 
 document.addEventListener("click",async e=>{const b=e.target.closest("[data-a]");if(!b)return;const a=b.dataset.a,id=b.dataset.id;read();
   if(a==="inc"||a==="dec"){setQty(id,(S.qty[id]||0)+(a==="inc"?1:-1));render();return;}
+  if(a==="open"){S.open[id]=true;render();return;}
+  if(a==="time"){S.time=id;render();return;}
   if(a==="del"){S.del=id==="1";render();return;}
-  if(a==="again"){Object.assign(S,{qty:{},notes:"",done:null,err:""});render();scrollTo(0,0);return;}
+  if(a==="again"){Object.assign(S,{qty:{},open:{},notes:"",time:"",done:null,err:""});render();scrollTo(0,0);return;}
   if(a==="send"){
-    const items=Object.entries(S.qty).map(([id,qty])=>({id,qty}));
-    const bad=!items.length?"items":S.name.trim().length<2?"name":S.phone.replace(/\D/g,"").length<9?"phone":(S.del&&S.address.trim().length<10)?"address":(!S.date||S.date<S.today)?"date":"";
+    const items=Object.entries(S.qty).map(([k,qty])=>{const[id,opt]=k.split("|");return{id,qty,opt:opt||""};});
+    const bad=!items.length?"items":(!S.date||S.date<S.today)?"date":!S.time?"time":(S.del&&S.address.trim().length<10)?"address":S.name.trim().length<2?"name":S.phone.replace(/\D/g,"").length<9?"phone":"";
     if(bad){S.err=ERR[bad];render();$("#err").scrollIntoView({block:"center"});return;}
     S.busy=true;S.err="";render();
-    const{data,error}=await sb.rpc("submit_order",{p:{name:S.name.trim(),phone:S.phone.trim(),address:S.del?S.address.trim():"",notes:S.notes.trim(),delivery:S.del,date:S.date,items}});
+    const{data,error}=await sb.rpc("submit_order",{p:{name:S.name.trim(),phone:S.phone.trim(),address:S.del?S.address.trim():"",notes:S.notes.trim(),delivery:S.del,date:S.date,time:S.time,items}});
     S.busy=false;
     if(error||!data){const k=error&&String(error.message||"").trim();S.err=ERR[k]||"Couldn't send your order. Please check your connection and try again.";render();const el=$("#err");if(el)el.scrollIntoView({block:"center"});return;}
-    S.done=data;render();scrollTo(0,0);}});
-document.addEventListener("input",e=>{const t=e.target;if(t.dataset.q){setQty(t.dataset.q,parseInt(t.value,10)||0);const row=t.closest(".it");row.classList.toggle("has",!!S.qty[t.dataset.q]);row.querySelector('[data-a="dec"]').disabled=!S.qty[t.dataset.q];
+    S.done=data;render();scrollTo(0,0);
+    if(S.shop.phone)setTimeout(()=>{location.href=waLink(waText(data));},400); /* open WhatsApp with the full order */}});
+document.addEventListener("input",e=>{const t=e.target;if(t.dataset.q){setQty(t.dataset.q,parseInt(t.value,10)||0);const st=t.closest(".step");st.querySelector('[data-a="dec"]').disabled=!S.qty[t.dataset.q];
   const tot=$("#tot");if(tot)tot.textContent=RM(total());const sm=$(".bar small");if(sm)sm.textContent=`${count()} item${count()===1?"":"s"}${S.del?" + delivery":""}`;}});
 load();
 </script>
