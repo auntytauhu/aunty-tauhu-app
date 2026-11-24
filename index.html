@@ -17,7 +17,7 @@
 <script src="inventory.js?v=11"></script>
 <script src="sales.js?v=5"></script>
 <script src="push.js?v=2"></script>
-<script src="preorder.js?v=3"></script>
+<script src="preorder.js?v=4"></script>
 <style>
 :root{--navy:#15213a;--navy2:#1d2d4d;--navy-100:#e3e8f1;--brown:#5c4130;--brown-900:#3b2a1f;--b50:#fbf8f2;--b100:#f5efe3;--b200:#ece2cf;--b300:#dccbab;--sand:#c9a86a;
 --red:#b3261e;--red-bg:#fbe9e7;--green:#2e7d4f;--green-bg:#e6f4ea;--amber:#9a6700;--amber-bg:#fff4d6;--st:env(safe-area-inset-top,0px);--sb:env(safe-area-inset-bottom,0px)}
@@ -1091,7 +1091,7 @@ function orderDetail(s,err){const o=DB.orders.find(x=>x.id===s.id),money=API.see
   <div class="card calc">${o.items.map(i=>`<div class="r"><span>${i.qty} × ${esc(i.name)}${i.custom?` <span class="badge b-sand">Custom</span>`:""}</span>${money?`<span>${RM(i.qty*i.price)}</span>`:""}</div>`).join("")}
    ${o.delivery?`<div class="r"><span>Delivery</span><span>${o.delivery.feeTbc?`<span class="muted">to be set</span>`:RM(o.delivery.fee)}</span></div>`:""}
    ${money?`<div class="r t"><span>Total</span><span>${RM(orderTotal(o))}</span></div><div class="muted">${o.channel==="bwa"?"Full price, no BWA cut. Claim from BWA.":"Direct sale."}</div>`:""}</div>
-  ${o.delivery&&o.status!=="cancelled"&&money?`<div class="card"><b>Delivery charge</b>${o.delivery.feeTbc?` <span class="badge b-amber">Not set yet</span>`:""}
+  ${o.delivery&&o.status!=="cancelled"&&(money||API.me.role==="kitchen")?`<div class="card"><b>Delivery charge</b>${o.delivery.feeTbc?` <span class="badge b-amber">Not set yet</span>`:""}
    <div class="row" style="gap:8px;margin-top:8px"><div class="field" style="margin:0;flex:1"><input id="dfee" inputmode="decimal" placeholder="e.g. 12.00" value="${o.delivery.feeTbc?"":s2d(o.delivery.fee)}" aria-label="Delivery charge (RM)"></div><button class="btn sm" data-a="saveFee">Save</button></div>
    <div class="muted" style="margin-top:6px">Total to pay: <b>${RM(itemsTotal(o))}</b> items + <b>${o.delivery.feeTbc?"delivery":RM(o.delivery.fee)}</b>${o.delivery.feeTbc?"":` = <b>${RM(orderTotal(o))}</b>`}</div>
    ${o.delivery.feeTbc?"":`<button class="btn sm ghost block" style="margin-top:8px" data-a="copyTotal">Copy total for customer</button>`}</div>`:""}

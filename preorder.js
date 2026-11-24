@@ -32,7 +32,7 @@ function preCard(o){const own=API.isOwner(),need=preNeedsFee(o),paid=custPaid(o)
    ${o.delivery?`<div class="paddr"><div class="grow"><small>Address</small>${esc(o.delivery.address)}</div><button class="btn sm ghost" data-a="preCopy" data-id="${o.id}">Copy</button></div>`:""}
    ${o.notes?`<div class="muted" style="margin:6px 0">Remarks: ${esc(o.notes)}</div>`:""}
    <div class="ptot"><div class="r"><span>Items</span><span>${RM(items)}</span></div>
-    ${o.delivery?`<div class="r"><span>Delivery</span>${own&&!paid?`<span class="pfee"><span>RM</span><input id="pfee_${o.id}" inputmode="decimal" placeholder="e.g. 25" value="${need?"":s2d(o.delivery.fee)}"><button class="btn sm" data-a="preFee" data-id="${o.id}">Save</button></span>`:`<span>${need?`<span class="muted">waiting for owner</span>`:RM(o.delivery.fee)}</span>`}</div>`:""}
+    ${o.delivery?`<div class="r"><span>Delivery</span>${!paid?`<span class="pfee"><span>RM</span><input id="pfee_${o.id}" inputmode="decimal" placeholder="e.g. 25" value="${need?"":s2d(o.delivery.fee)}"><button class="btn sm" data-a="preFee" data-id="${o.id}">Save</button></span>`:`<span>${need?`<span class="muted">not set</span>`:RM(o.delivery.fee)}</span>`}</div>`:""}
     <div class="r t"><span>Total to pay</span><span>${need?"–":RM(orderTotal(o))}</span></div></div>
    ${paid?"":`<button class="btn wa block" data-a="preSend" data-id="${o.id}" ${need||!o.phone?"disabled":""}>${need?"Set the delivery charge first":"Send total on WhatsApp"}</button>
     ${need?"":`<button class="btn sm ghost block" style="margin-top:6px" data-a="preQr" data-id="${o.id}">Send with QR picture</button>`}
@@ -45,11 +45,11 @@ function preView(){const f=ui.preF||"todo",all=preList(),todo=all.filter(o=>!cus
   const fee=list.filter(preNeedsFee),rest=list.filter(o=>!preNeedsFee(o));
   const sec=(title,l,hint)=>l.length?`<div class="lhead"><h3>${title}</h3><span>${l.length}</span></div>${hint?`<p class="muted" style="margin:-4px 0 8px">${hint}</p>`:""}${l.map(preCard).join("")}`:"";
   return`<div class="row between"><h2 style="margin:0">Pre-orders</h2><button class="btn sm sec" data-a="preLink">Copy form link</button></div>
-  <p class="muted">Orders customers send from the order form. ${API.isOwner()?"Type the delivery charge, then staff sends the total on WhatsApp.":"When the delivery charge is set, send the total on WhatsApp. Tap Paid when the customer has paid."}</p>
+  <p class="muted">Orders customers send from the order form. Type the delivery charge, send the total on WhatsApp, then tap Paid when the customer has paid.</p>
   ${Push.card("pre")}
   <div class="chips">${[["todo",`To do (${todo.length})`],["paid","Paid (upcoming)"],["all","All"]].map(([k,l])=>`<button class="chip ${f===k?"on":""}" data-a="preF" data-id="${k}">${l}</button>`).join("")}</div>
   ${all.length>4?`<input class="search" type="search" placeholder="Search name, order no or phone" data-filter="preList" autocomplete="off">`:""}
-  <div id="preList">${f==="todo"?sec("1. Set delivery charge",fee,API.isOwner()?"Check the address, type the charge and tap Save.":"Waiting for the owner to set the charge.")+sec("2. Send total · wait for payment",rest,""):
+  <div id="preList">${f==="todo"?sec("1. Set delivery charge",fee,"Check the address, type the charge and tap Save.")+sec("2. Send total · wait for payment",rest,""):
     list.map(preCard).join("")}${list.length?`<div class="empty" data-none style="display:none">No order matches.</div>`:`<div class="empty">${f==="todo"?"Nothing to do. New orders from the form will appear here.":"No orders here."}</div>`}</div>`;}
 function preClick(a,id,el){const o=id&&DB.orders.find(x=>x.id===String(id).split(":")[0]);
   switch(a){
